@@ -12,13 +12,15 @@ Key invariants under test:
 
 import pytest
 import pandas as pd
-from evaluation.evaluator import (
+from core.evaluation import (
     evaluate,
     load_policy,
     compute_primary_metric,
     EvalMetrics,
+    ScoringPolicy,
     SUPPORTED_METRICS,
 )
+from core.mode import Mode
 from patterns.base import RunResult
 from datasets.base import DatasetHandle, DatasetMeta
 
@@ -145,6 +147,7 @@ class TestAuthorityChain:
         handle = StubHandle(primary_metric="f1_score")
         m = evaluate(_empty_result(), handle, policy)
         assert m.primary_metric_value == pytest.approx(0.0)
+        assert m.score == pytest.approx(0.0)
 
     def test_empty_flags_give_zero_recall(self, policy):
         handle = StubHandle(primary_metric="recall")
@@ -246,6 +249,106 @@ class TestComputePrimaryMetric:
 # ---------------------------------------------------------------------------
 
 class TestOtherDimensions:
+    def test_primary_metric_floor_zeroes_composite_score(self, policy):
+        handle = StubHandle(primary_metric="f1_score")
+        m = evaluate(_empty_result(), handle, policy)
+        assert m.primary_metric_value < policy.primary_metric_floor
+        assert m.score == pytest.approx(0.0)
+
+    def test_primary_metric_floor_can_come_from_policy_rules(self):
+        handle = StubHandle(primary_metric="f1_score")
+        result = _all_flagged_result()
+        policy = {
+            "weights": {
+                "primary_metric": {"weight": 0.60},
+                "explainability": {"weight": 0.20},
+                "latency": {"weight": 0.10},
+                "cost": {"weight": 0.10},
+            },
+            "constraints": {
+                "latency": {"max_ms": 500},
+                "cost": {"max_per_1k": 0.10},
+            },
+            "rules": {
+                "primary_metric_floor": 0.5,
+                "stability_threshold": 0.05,
+                "penalty_factor": 0.5,
+                "stability_gap_threshold": 0.2,
+                "promotion_confidence_threshold": 0.7,
+            },
+            "arena": {
+                "ranking": {"stable_bonus": 1.1, "unstable_bonus": 0.9},
+                "exploration": {"max_runs_per_pattern": 5},
+            },
+            "promotion": {
+                "working_threshold": 0.55,
+                "stable_threshold": 0.72,
+                "min_runs": 3,
+            },
+        }
+
+        m = evaluate(result, handle, policy)
+
+        assert m.primary_metric_value < 0.5
+        assert m.score == pytest.approx(0.0)
+
+    def test_load_policy_accepts_nested_weight_and_rule_shape(self, tmp_path):
+        policy_path = tmp_path / "policy.yaml"
+        policy_path.write_text(
+            """
+version: "1.2"
+
+weights:
+  primary_metric:
+    weight: 0.60
+  explainability:
+    weight: 0.20
+  latency:
+    weight: 0.10
+  cost:
+    weight: 0.10
+
+constraints:
+  latency:
+    max_ms: 500
+  cost:
+    max_per_1k: 0.10
+
+rules:
+  primary_metric_floor: 0.1
+  stability_threshold: 0.05
+  penalty_factor: 0.5
+  stability_gap_threshold: 0.2
+  promotion_confidence_threshold: 0.7
+
+arena:
+  ranking:
+    stable_bonus: 1.1
+    unstable_bonus: 0.9
+  exploration:
+    max_runs_per_pattern: 5
+
+promotion:
+  working_threshold: 0.55
+  stable_threshold: 0.72
+  min_runs: 3
+""".strip()
+        )
+
+        policy = load_policy(policy_path)
+
+        assert isinstance(policy, ScoringPolicy)
+        assert policy.primary_metric_weight == pytest.approx(0.60)
+        assert policy.explainability_weight == pytest.approx(0.20)
+        assert policy.primary_metric_floor == pytest.approx(0.1)
+        assert policy.stability_threshold == pytest.approx(0.05)
+        assert policy.penalty_factor == pytest.approx(0.5)
+        assert policy.stability_gap_threshold == pytest.approx(0.2)
+        assert policy.promotion_confidence_threshold == pytest.approx(0.7)
+        assert policy.ranking_stable_bonus == pytest.approx(1.1)
+        assert policy.ranking_unstable_bonus == pytest.approx(0.9)
+        assert policy.exploration_max_runs_per_pattern == 5
+
     def test_full_explainability_when_all_flagged_rows_have_text(self, policy):
         handle = StubHandle(primary_metric="f1_score")
         result = _perfect_result()
@@ -270,10 +373,10 @@ class TestOtherDimensions:
 
     def test_latency_penalised(self, policy):
         handle = StubHandle(primary_metric="f1_score")
-        fast = RunResult(flags=[False]*10, scores=[0.0]*10, explanation=[""]*10,
-                         latency_ms=0.0)
-        slow = RunResult(flags=[False]*10, scores=[0.0]*10, explanation=[""]*10,
-                         latency_ms=500.0)
+        fast = _perfect_result()
+        fast.latency_ms = 0.0
+        slow = _perfect_result()
+        slow.latency_ms = 500.0
         m_fast = evaluate(fast, handle, policy)
         m_slow = evaluate(slow, handle, policy)
         assert m_fast.latency_score > m_slow.latency_score
@@ -281,14 +384,69 @@ class TestOtherDimensions:
 
     def test_cost_penalised(self, policy):
         handle = StubHandle(primary_metric="f1_score")
-        free      = RunResult(flags=[False]*10, scores=[0.0]*10, explanation=[""]*10,
-                              cost_per_1k=0.0)
-        expensive = RunResult(flags=[False]*10, scores=[0.0]*10, explanation=[""]*10,
-                              cost_per_1k=0.10)
+        free = _perfect_result()
+        free.cost_per_1k = 0.0
+        expensive = _perfect_result()
+        expensive.cost_per_1k = 0.10
         m_free = evaluate(free,      handle, policy)
         m_exp  = evaluate(expensive, handle, policy)
         assert m_free.cost_score > m_exp.cost_score
         assert m_exp.cost_score == pytest.approx(0.0)
+
+    def test_execution_mode_penalises_constraint_failures_for_handle_results(self, policy):
+        handle = StubHandle(primary_metric="f1_score")
+        result = _perfect_result()
+        result.latency_ms = policy.latency_max_ms * 2
+
+        exploration = evaluate(result, handle, policy, mode=Mode.EXPLORATION)
+        execution = evaluate(result, handle, policy, mode=Mode.EXECUTION)
+
+        assert exploration.score > execution.score
+
+    def test_mapping_evaluation_respects_mode_strictness(self):
+        policy = {
+            "weights": {
+                "primary_metric": {"weight": 0.60},
+                "explainability": {"weight": 0.20},
+                "latency": {"weight": 0.10},
+                "cost": {"weight": 0.10},
+            },
+            "constraints": {
+                "latency": {"max_ms": 10},
+                "cost": {"max_per_1k": 0.10},
+            },
+            "rules": {
+                "primary_metric_floor": 0.1,
+                "stability_threshold": 0.05,
+                "penalty_factor": 0.5,
+                "stability_gap_threshold": 0.2,
+                "promotion_confidence_threshold": 0.7,
+            },
+            "arena": {
+                "ranking": {"stable_bonus": 1.1, "unstable_bonus": 0.9},
+                "exploration": {"max_runs_per_pattern": 5},
+            },
+            "promotion": {
+                "working_threshold": 0.55,
+                "stable_threshold": 0.72,
+                "min_runs": 3,
+            },
+        }
+        dataset = {"labels": [True, False], "metadata": {"primary_metric": "f1_score"}}
+        result = {
+            "flags": [True, False],
+            "scores": [0.9, 0.1],
+            "latency_ms": 100,
+            "cost_per_1k": 0.0,
+            "explainability_score": 1.0,
+        }
+
+        exploration = evaluate(result, dataset, policy, mode=Mode.EXPLORATION)
+        execution = evaluate(result, dataset, policy, mode=Mode.EXECUTION)
+
+        assert exploration.passed_constraints is False
+        assert execution.passed_constraints is False
+        assert exploration.score > execution.score
 
     def test_score_in_range(self, policy):
         handle = StubHandle(primary_metric="f1_score")
