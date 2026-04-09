@@ -22,7 +22,6 @@ if str(_BB_PATH) not in sys.path:
 
 from datasets.base import DatasetHandle
 from patterns.base import PatternHandler, RunResult
-from use_cases.fraud.patterns import compute_f1
 
 
 class RuleSpike(PatternHandler):
@@ -77,7 +76,7 @@ class RuleSpike(PatternHandler):
         result = RunResult(
             flags=flags, scores=scores, explanation=explanation
         )
-        result.primary_metric_value = compute_f1(flags, labels)
+        # Do NOT set primary_metric_value — evaluator owns primary metric
         result.extra_metrics = {
             "precision": float(_precision(flags, labels)),
             "recall":    float(_recall(flags, labels)),

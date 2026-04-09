@@ -24,18 +24,20 @@ class StubHandle(DatasetHandle):
         return [True]*3 + [False]*7
 
 
-def _make_pattern(name, score):
+def _make_pattern(name, n_fp):
+    """
+    Build a pattern with 3 true positives and `n_fp` false positives.
+    Higher n_fp → lower precision → lower F1 → lower composite score.
+    """
     class P(PatternHandler):
         def run(self, handle):
-            df = handle.eval_df()
-            n  = len(df)
-            r  = RunResult(
-                flags=[True]*3+[False]*7,
-                scores=[score]*3+[0.1]*7,
-                explanation=["sig"]*3+[""]*7,
+            # 3 true positives + n_fp false positives from the negative tail
+            flags = [True]*3 + [True]*n_fp + [False]*(7 - n_fp)
+            return RunResult(
+                flags=flags,
+                scores=[0.9 if f else 0.1 for f in flags],
+                explanation=["sig" if f else "" for f in flags],
             )
-            r.primary_metric_value = score
-            return r
         def describe(self):
             return {"pattern": self.name}
     P.name    = name
@@ -50,9 +52,9 @@ def tmp_paths(tmp_path):
 
 def test_arena_ranks_by_score(tmp_paths):
     patterns = [
-        _make_pattern("low",  0.5),
-        _make_pattern("high", 0.9),
-        _make_pattern("mid",  0.7),
+        _make_pattern("low",  n_fp=4),   # worst F1
+        _make_pattern("high", n_fp=0),   # perfect F1
+        _make_pattern("mid",  n_fp=2),   # middle F1
     ]
     arena = compare_patterns(patterns, StubHandle(),
                              runs_path=tmp_paths["runs"],
@@ -62,7 +64,7 @@ def test_arena_ranks_by_score(tmp_paths):
 
 
 def test_arena_winner_is_highest(tmp_paths):
-    patterns = [_make_pattern("a", 0.6), _make_pattern("b", 0.85)]
+    patterns = [_make_pattern("a", n_fp=3), _make_pattern("b", n_fp=0)]
     arena = compare_patterns(patterns, StubHandle(),
                              runs_path=tmp_paths["runs"],
                              registry_path=tmp_paths["registry"])
@@ -71,7 +73,7 @@ def test_arena_winner_is_highest(tmp_paths):
 
 def test_arena_logs_all_patterns(tmp_paths):
     import json
-    patterns = [_make_pattern(f"p{i}", 0.5+i*0.1) for i in range(3)]
+    patterns = [_make_pattern(f"p{i}", n_fp=i) for i in range(3)]
     compare_patterns(patterns, StubHandle(),
                      runs_path=tmp_paths["runs"],
                      registry_path=tmp_paths["registry"])

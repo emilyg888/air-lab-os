@@ -141,10 +141,12 @@ class TestPatternContract:
         result = pattern.detect(handle)
         assert all(0.0 <= s <= 1.0 for s in result.scores)
 
-    def test_primary_metric_in_range(self, pattern):
+    def test_runresult_has_no_primary_metric_value(self, pattern):
+        """Patterns must not set primary_metric_value — evaluator owns this."""
         handle = StubFraudHandle()
         result = pattern.detect(handle)
-        assert 0.0 <= result.primary_metric_value <= 1.0
+        assert not hasattr(result, "primary_metric_value"), \
+            "Patterns must not set primary_metric_value — evaluator owns this"
 
     def test_flagged_rows_have_explanation(self, pattern):
         handle = StubFraudHandle()
@@ -183,18 +185,16 @@ class TestPatternIntegration:
     def test_rule_spike_real_data(self):
         from use_cases.fraud.patterns.rule_spike import get_pattern
         result = self._run(get_pattern())
-        assert result.primary_metric_value >= 0.0
         assert any(result.flags), "Spike pattern flagged nothing on real data"
 
     def test_rule_velocity_real_data(self):
         from use_cases.fraud.patterns.rule_velocity import get_pattern
         result = self._run(get_pattern())
-        assert result.primary_metric_value >= 0.0
+        assert len(result.flags) > 0
 
     def test_ml_logistic_real_data(self):
         from use_cases.fraud.patterns.ml_logistic import get_pattern
         result = self._run(get_pattern())
-        assert result.primary_metric_value >= 0.0
         assert any(result.flags), "Logistic flagged nothing on real data"
 
     def test_ml_logistic_trains_on_train_not_eval(self):
@@ -204,34 +204,3 @@ class TestPatternIntegration:
         # This exercises both train_df() and eval_df() paths
         result = get_pattern().detect(handle)
         assert len(result.flags) == len(handle.labels())
-
-
-# ---------------------------------------------------------------------------
-# F1 helper tests — no db required
-# ---------------------------------------------------------------------------
-
-class TestComputeF1:
-    def test_perfect_precision_recall(self):
-        from use_cases.fraud.patterns import compute_f1
-        flags  = [True, False, True, False]
-        labels = [True, False, True, False]
-        assert compute_f1(flags, labels) == pytest.approx(1.0)
-
-    def test_all_false_no_fraud(self):
-        from use_cases.fraud.patterns import compute_f1
-        flags  = [False, False, False]
-        labels = [False, False, False]
-        assert compute_f1(flags, labels) == pytest.approx(1.0)
-
-    def test_all_missed(self):
-        from use_cases.fraud.patterns import compute_f1
-        flags  = [False, False, False]
-        labels = [True,  True,  False]
-        assert compute_f1(flags, labels) == pytest.approx(0.0)
-
-    def test_partial_f1(self):
-        from use_cases.fraud.patterns import compute_f1
-        flags  = [True, True,  False, False]
-        labels = [True, False, True,  False]
-        # precision=0.5, recall=0.5 → F1=0.5
-        assert compute_f1(flags, labels) == pytest.approx(0.5)

@@ -30,22 +30,18 @@ class StubPattern(PatternHandler):
     name    = "stub_pattern"
     version = "0.1"
 
-    def __init__(self, primary_metric=0.8):
-        self._primary = primary_metric
-
     def run(self, handle):
         df = handle.eval_df()
         n  = len(df)
-        r  = RunResult(
-            flags       = [True]*3 + [False]*7,
-            scores      = [0.9]*3 + [0.1]*7,
-            explanation = ["high signal"]*3 + [""]*7,
+        return RunResult(
+            flags       = [True]*3 + [False]*(n - 3),
+            scores      = [0.9]*3  + [0.1]*(n - 3),
+            explanation = ["high signal"]*3 + [""]*(n - 3),
         )
-        r.primary_metric_value = self._primary
-        return r
+        # Note: no primary_metric_value — evaluator computes this
 
     def describe(self):
-        return {"pattern": self.name, "primary_metric": self._primary}
+        return {"pattern": self.name}
 
 
 class CrashPattern(PatternHandler):
@@ -92,7 +88,7 @@ def test_crash_is_logged_not_raised(tmp_paths):
 
 def test_result_has_separate_status_and_tier(tmp_paths):
     result = run_experiment(
-        StubPattern(primary_metric=0.8), StubHandle(),
+        StubPattern(), StubHandle(),
         runs_path=tmp_paths["runs"],
         registry_path=tmp_paths["registry"],
     )
@@ -113,12 +109,12 @@ def test_registry_updated_after_run(tmp_paths):
 
 def test_second_run_status_discard_if_no_improvement(tmp_paths):
     run_experiment(
-        StubPattern(primary_metric=0.8), StubHandle(),
+        StubPattern(), StubHandle(),
         runs_path=tmp_paths["runs"],
         registry_path=tmp_paths["registry"],
     )
     r2 = run_experiment(
-        StubPattern(primary_metric=0.8), StubHandle(),
+        StubPattern(), StubHandle(),
         runs_path=tmp_paths["runs"],
         registry_path=tmp_paths["registry"],
     )

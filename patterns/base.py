@@ -23,24 +23,34 @@ from datasets.base import DatasetHandle
 @dataclass
 class RunResult:
     """
-    Standardised output of every pattern run.
+    Standardised output contract for every pattern run.
 
-    All three lists must be the same length as the eval DataFrame.
+    All three lists must be the same length as eval_df().
 
-    flags       — True if the row is a positive detection
-    scores      — float in [0.0, 1.0], confidence or probability
-    explanation — human-readable reason string, "" if none
-    latency_ms  — wall-clock ms for the full detect() call (set by base)
-    cost_per_1k — estimated USD per 1000 rows (0.0 for local patterns)
-    primary_metric_value — the domain metric for this run (e.g. f1 score).
-                           Set by the engine after scoring, not by the pattern.
+    flags       — True if the row is a positive detection.
+    scores      — float in [0.0, 1.0], per-row confidence or probability.
+                  Higher = more likely to be a true positive.
+    explanation — human-readable reason string per row. Empty string ""
+                  if the row is not flagged or no explanation is available.
+    latency_ms  — wall-clock milliseconds for the full detect() call.
+                  Set by PatternHandler.detect(). Do NOT set in run().
+    cost_per_1k — estimated USD cost per 1000 rows. 0.0 for local models.
+                  Set this if the pattern calls an external API.
+    extra_metrics — optional dict of supplementary diagnostic values for
+                  logging (e.g. {"precision": 0.8, "n_flagged": 12}).
+                  These are written to runs.json but never affect scoring.
+
+    What patterns must NOT do:
+      - Do not compute or set any performance metric (F1, accuracy, etc).
+        The evaluator computes all metrics from flags and ground truth.
+        The dataset declares which metric to use via DatasetMeta.primary_metric.
+      - Do not set latency_ms. The base class sets it automatically.
     """
-    flags: list[bool]
-    scores: list[float]
-    explanation: list[str]
-    latency_ms: float = 0.0
-    cost_per_1k: float = 0.0
-    primary_metric_value: float = 0.0
+    flags:        list[bool]
+    scores:       list[float]
+    explanation:  list[str]
+    latency_ms:   float = 0.0
+    cost_per_1k:  float = 0.0
     extra_metrics: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -60,23 +70,29 @@ class PatternHandler(ABC):
     Subclasses implement run(). The base class wraps run() to record
     wall-clock latency automatically via detect().
 
-    Pattern files implementing this class live in:
-      patterns/scratch/   — exploration, unproven
-      patterns/working/   — improving, above working_threshold
-      patterns/stable/    — promoted, certified on gold dataset
+    Pattern contract — a pattern is responsible for:
+      1. Reading handle.eval_df() to get the rows to score.
+      2. Producing flags, scores, explanation of the same length.
+      3. Optionally reading handle.train_df() for ML patterns that fit.
+      4. Optionally populating extra_metrics for diagnostic logging.
+
+    A pattern is NOT responsible for:
+      - Computing F1, accuracy, or any performance metric.
+      - Knowing which metric the dataset uses.
+      - Setting primary_metric_value (field removed — evaluator owns this).
 
     Usage:
         handle  = MyDatasetHandle()
         pattern = MyPattern(threshold=0.5)
-        result  = pattern.detect(handle)
+        result  = pattern.detect(handle)   # latency_ms set automatically
     """
 
-    name: str = "base"                   # unique pattern identifier
-    version: str = "0.1"                 # pattern version string
+    name:    str = "base"    # unique pattern identifier — override in subclass
+    version: str = "0.1"    # pattern version string — override in subclass
 
     def detect(self, handle: DatasetHandle) -> RunResult:
         """
-        Public entry point. Times the call, injects latency_ms.
+        Public entry point. Times the call and injects latency_ms.
         Do NOT override — override run() instead.
         """
         t0 = time.perf_counter()
@@ -87,22 +103,23 @@ class PatternHandler(ABC):
     @abstractmethod
     def run(self, handle: DatasetHandle) -> RunResult:
         """
-        Implement pattern logic here.
+        Implement detection logic here.
 
         Args:
             handle: DatasetHandle providing eval_df(), train_df(), labels().
-                    The pattern must not assume any specific columns exist
-                    beyond what DatasetHandle.meta declares.
+                    Do not assume specific column names beyond what
+                    DatasetMeta declares.
 
         Returns:
-            RunResult with flags, scores, explanation the same length as
-            handle.eval_df(). Do NOT set latency_ms — base class does it.
+            RunResult with flags, scores, explanation — same length as
+            handle.eval_df(). Do NOT set latency_ms. Do NOT compute
+            or set any performance metric.
         """
         ...
 
     def describe(self) -> dict:
         """
         Return hyperparameter dict for run logging.
-        Override to include pattern-specific config.
+        Override in subclasses to include pattern-specific config.
         """
         return {"pattern": self.name, "version": self.version}
