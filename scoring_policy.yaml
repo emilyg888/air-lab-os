@@ -1,0 +1,23 @@
+# air-lab-os scoring policy
+# Locked — human-owned. Do not modify.
+# Weights must sum to 1.0.
+# This is the DEFAULT policy. Use-case plugins may provide their own.
+
+version: "1.0"
+
+weights:
+  primary_metric:  0.40   # domain metric (f1, accuracy, etc) — provided by RunResult
+  explainability:  0.25   # fraction of positive flags with non-empty explanation
+  latency:         0.20   # inverse-scaled: 0ms=1.0, max_ms=0.0, linear
+  cost:            0.15   # inverse-scaled: $0=1.0, max_per_1k=0.0, linear
+
+promotion:
+  working_threshold: 0.65  # min score to reach working tier (was: silver)
+  stable_threshold:  0.78  # min score to become promotion candidate (was: gold)
+  min_runs:          3     # min experiments before promotion eligible
+
+latency:
+  max_ms: 500              # latency at which latency_score = 0.0
+
+cost:
+  max_per_1k: 0.10         # USD per 1k rows at which cost_score = 0.0
