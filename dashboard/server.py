@@ -219,9 +219,8 @@ def build_results(registry_path: Path, n: int) -> dict[str, Any]:
     Synthesize an experiment row list from per-pattern score arrays.
 
     Each element of a pattern's `scores` list becomes one row. Rows are
-    ordered most-recent-first by (pattern.last_updated, score_index desc).
-    Without per-run timestamps we approximate: the last score's index is
-    the most recent run for that pattern.
+    ordered by metric score descending so the strongest experiment
+    outcomes stay at the top of the log.
     """
     raw = _load_registry_raw(registry_path)
     rows: list[dict[str, Any]] = []
@@ -246,9 +245,8 @@ def build_results(registry_path: Path, n: int) -> dict[str, Any]:
                 }
             )
 
-    # Reverse order: most recent first (last score of each pattern first).
     rows.sort(
-        key=lambda r: (r["last_updated"], r["is_last"], r["run_index"]),
+        key=lambda r: (r["score"], r["last_updated"], r["is_last"], r["run_index"]),
         reverse=True,
     )
 
@@ -307,7 +305,7 @@ def _diff_result_events(
 
 
 def _initial_result_events(snapshot: dict[str, Any], limit: int) -> list[dict[str, Any]]:
-    """Last N synthesized result events across the history (recent first)."""
+    """Top N synthesized result events across the history by score descending."""
     rows: list[dict[str, Any]] = []
     for p in snapshot["patterns"]:
         scores = p.get("scores") or []
@@ -324,7 +322,7 @@ def _initial_result_events(snapshot: dict[str, Any], limit: int) -> list[dict[st
                 }
             )
     rows.sort(
-        key=lambda r: (r["last_updated"], r["is_last"], r["run_index"]),
+        key=lambda r: (r["score"], r["last_updated"], r["is_last"], r["run_index"]),
         reverse=True,
     )
     return rows[:limit]

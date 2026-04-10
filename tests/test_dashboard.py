@@ -81,6 +81,8 @@ def test_root_returns_html(client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
     assert "AIR LAB OS" in r.text
+    assert 'id="detail-modal"' in r.text
+    assert 'id="log-title"' in r.text
 
 
 def test_registry_empty(client, paths):
@@ -184,9 +186,11 @@ def test_results_endpoint_limits_and_order(client, paths):
     assert body["total"] == 5  # 3 + 2
     assert body["returned"] == 2
     assert len(body["rows"]) == 2
-    # Most recent first: logistic's latest score (0.82) should lead.
+    # Highest metric scores first, regardless of recency.
     assert body["rows"][0]["pattern"] == "logistic"
     assert body["rows"][0]["score"] == pytest.approx(0.82)
+    assert body["rows"][1]["pattern"] == "logistic"
+    assert body["rows"][1]["score"] == pytest.approx(0.80)
 
 
 def test_registry_exposes_use_case(client, paths):
