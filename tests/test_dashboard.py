@@ -83,6 +83,7 @@ def test_root_returns_html(client):
     assert "AIR LAB OS" in r.text
     assert 'id="detail-modal"' in r.text
     assert 'id="log-title"' in r.text
+    assert 'id="feature-strip"' in r.text
 
 
 def test_registry_empty(client, paths):
@@ -232,6 +233,17 @@ def test_policy_endpoint(client):
     assert "weights" in body
     assert body["weights"]["primary_metric"] == 0.40
     assert body["promotion"]["working_threshold"] == 0.65
+
+
+def test_features_endpoint_returns_snapshot(client):
+    r = client.get("/api/features")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["dataset"] == "use_cases.fraud.handle"
+    assert body["baseline_f1"] == pytest.approx(0.8671)
+    assert body["counts"] == {"improved": 0, "flat": 2, "regressed": 5}
+    assert len(body["results"]) == 7
+    assert body["results"][0]["feature_name"] == "amount_to_balance_ratio"
 
 
 # ---------------------------------------------------------------------------

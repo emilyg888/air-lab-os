@@ -179,6 +179,94 @@ UI_HTML = r"""<!doctype html>
     50% { box-shadow: 0 0 12px rgba(245, 179, 66, 0.35); }
   }
 
+  .feature-strip {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 12px;
+    padding: 0 12px 10px;
+  }
+  .feature-summary,
+  .feature-grid {
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    min-height: 0;
+  }
+  .feature-summary {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .feature-kicker {
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .feature-baseline {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--amber);
+  }
+  .feature-summary-line {
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .feature-counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .feature-count {
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    padding: 8px;
+  }
+  .feature-count .label {
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .feature-count .value {
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+  .feature-card {
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    padding: 10px;
+    min-height: 92px;
+  }
+  .feature-card .name {
+    color: var(--text);
+    font-weight: 700;
+    font-size: 11px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .feature-card .delta {
+    margin-top: 10px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .feature-card .meta {
+    margin-top: 6px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .feature-card.improved .delta { color: var(--green); }
+  .feature-card.flat .delta { color: var(--amber); }
+  .feature-card.regressed .delta { color: var(--red); }
+
   /* Registry cards */
   .pattern-card {
     border: 1px solid var(--border);
@@ -413,6 +501,11 @@ UI_HTML = r"""<!doctype html>
   }
 
   @media (max-width: 760px) {
+    .feature-strip,
+    .feature-grid,
+    .feature-counts {
+      grid-template-columns: 1fr;
+    }
     main {
       grid-template-columns: 1fr;
     }
@@ -447,6 +540,15 @@ UI_HTML = r"""<!doctype html>
 </header>
 
 <div id="promotion-banner" class="banner">⚑ PROMOTION CANDIDATE — manual review required</div>
+
+<section id="feature-strip" class="feature-strip">
+  <div class="feature-summary">
+    <div class="empty">loading feature snapshot…</div>
+  </div>
+  <div class="feature-grid">
+    <div class="empty">loading feature snapshot…</div>
+  </div>
+</section>
 
 <main>
   <section class="panel">
@@ -520,6 +622,7 @@ UI_HTML = r"""<!doctype html>
   const headerTs      = document.getElementById('header-ts');
   const useCaseValue  = document.getElementById('use-case-value');
   const heartbeatTs   = document.getElementById('heartbeat-ts');
+  const featureStrip  = document.getElementById('feature-strip');
   const conn          = document.getElementById('conn');
   const connLabel     = document.getElementById('conn-label');
   const banner        = document.getElementById('promotion-banner');
@@ -760,6 +863,55 @@ UI_HTML = r"""<!doctype html>
       .join('  ·  ');
   }
 
+  function renderFeatures(snapshot) {
+    if (!featureStrip) return;
+    if (!snapshot || !Array.isArray(snapshot.results) || !snapshot.results.length) {
+      featureStrip.innerHTML = '<div class="feature-summary"><div class="empty">no feature snapshot available</div></div><div class="feature-grid"><div class="empty">no feature snapshot available</div></div>';
+      return;
+    }
+
+    const counts = snapshot.counts || { improved: 0, flat: 0, regressed: 0 };
+    const results = snapshot.results.slice().sort((a, b) => Number(b.delta_f1 || 0) - Number(a.delta_f1 || 0));
+
+    const summaryHtml = `
+      <div class="feature-summary">
+        <div class="feature-kicker">Feature Experiments</div>
+        <div class="feature-baseline">F1 ${Number(snapshot.baseline_f1 || 0).toFixed(4)}</div>
+        <div class="feature-summary-line">Dataset ${escapeHtml(snapshot.dataset || '—')}</div>
+        <div class="feature-summary-line">Seven one-feature-at-a-time runs against <strong>ml_logistic</strong>.</div>
+        <div class="feature-counts">
+          <div class="feature-count">
+            <div class="label">Improved</div>
+            <div class="value" style="color:var(--green)">${counts.improved || 0}</div>
+          </div>
+          <div class="feature-count">
+            <div class="label">Flat</div>
+            <div class="value" style="color:var(--amber)">${counts.flat || 0}</div>
+          </div>
+          <div class="feature-count">
+            <div class="label">Regressed</div>
+            <div class="value" style="color:var(--red)">${counts.regressed || 0}</div>
+          </div>
+        </div>
+        <div class="feature-summary-line">Generated ${escapeHtml(String(snapshot.generated_at || '—'))}</div>
+      </div>
+    `;
+
+    const gridHtml = `
+      <div class="feature-grid">
+        ${results.map((row) => `
+          <div class="feature-card ${escapeHtml(row.status || 'flat')}">
+            <div class="name">${escapeHtml(row.feature_name || '?')}</div>
+            <div class="delta">${Number(row.delta_f1 || 0).toFixed(4).replace(/^/, Number(row.delta_f1 || 0) >= 0 ? '+' : '')}</div>
+            <div class="meta">new F1 ${Number(row.experiment_f1 || 0).toFixed(4)}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    featureStrip.innerHTML = summaryHtml + gridHtml;
+  }
+
   function statusToMarker(status) {
     const s = (status || '').toLowerCase();
     if (s === 'crash')   return { cls: 'crash',   char: '⚡' };
@@ -819,13 +971,15 @@ UI_HTML = r"""<!doctype html>
 
   async function initialFetch() {
     try {
-      const [reg, res, pol] = await Promise.all([
+      const [reg, res, pol, features] = await Promise.all([
         fetch('/api/registry').then(r => r.json()),
         fetch('/api/results?n=20').then(r => r.json()),
         fetch('/api/policy').then(r => r.json()),
+        fetch('/api/features').then(r => r.json()),
       ]);
       renderPolicy(pol);
       renderRegistry(reg);
+      renderFeatures(features);
       if (res && Array.isArray(res.rows)) {
         res.rows.forEach(addLogEvent);
       }

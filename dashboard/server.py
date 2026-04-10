@@ -46,6 +46,56 @@ USE_CASE_DISPLAY_NAMES = {
     "fraud": "Fraud Detection",
 }
 
+FEATURE_EXPERIMENT_SNAPSHOT = {
+    "dataset": "use_cases.fraud.handle",
+    "baseline_f1": 0.8671,
+    "generated_at": "2026-04-10T10:00:00+11:00",
+    "results": [
+        {
+            "feature_name": "amount_to_balance_ratio",
+            "experiment_f1": 0.8641,
+            "delta_f1": -0.0030,
+            "status": "regressed",
+        },
+        {
+            "feature_name": "same_ts_amount_pressure",
+            "experiment_f1": 0.8656,
+            "delta_f1": -0.0015,
+            "status": "regressed",
+        },
+        {
+            "feature_name": "high_risk_debit_flag",
+            "experiment_f1": 0.8671,
+            "delta_f1": 0.0000,
+            "status": "flat",
+        },
+        {
+            "feature_name": "burst_density_10m",
+            "experiment_f1": 0.8671,
+            "delta_f1": 0.0000,
+            "status": "flat",
+        },
+        {
+            "feature_name": "behaviour_drift",
+            "experiment_f1": 0.8621,
+            "delta_f1": -0.0050,
+            "status": "regressed",
+        },
+        {
+            "feature_name": "behaviour_drift_v2",
+            "experiment_f1": 0.8621,
+            "delta_f1": -0.0050,
+            "status": "regressed",
+        },
+        {
+            "feature_name": "merchant_diversity",
+            "experiment_f1": 0.8656,
+            "delta_f1": -0.0015,
+            "status": "regressed",
+        },
+    ],
+}
+
 
 def _scan_use_case_patterns(use_cases_dir: Path) -> dict[str, str]:
     """
@@ -255,6 +305,17 @@ def build_results(registry_path: Path, n: int) -> dict[str, Any]:
     return {"rows": limited, "total": total, "returned": len(limited)}
 
 
+def build_feature_snapshot() -> dict[str, Any]:
+    payload = json.loads(json.dumps(FEATURE_EXPERIMENT_SNAPSHOT))
+    results = payload["results"]
+    payload["counts"] = {
+        "improved": sum(1 for row in results if row["delta_f1"] > 0),
+        "flat": sum(1 for row in results if row["delta_f1"] == 0),
+        "regressed": sum(1 for row in results if row["delta_f1"] < 0),
+    }
+    return payload
+
+
 def load_policy_dict(policy_path: Path) -> dict[str, Any]:
     if not policy_path.exists():
         return {}
@@ -415,6 +476,10 @@ def create_app(
     @app.get("/api/results")
     def api_results(n: int = Query(50, ge=1, le=500)) -> JSONResponse:
         return JSONResponse(build_results(app.state.registry_path, n))
+
+    @app.get("/api/features")
+    def api_features() -> JSONResponse:
+        return JSONResponse(build_feature_snapshot())
 
     @app.get("/api/stream")
     def api_stream() -> StreamingResponse:
