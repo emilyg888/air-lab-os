@@ -1175,7 +1175,7 @@ QWEN plan layer — generates the next experiment queue.
 
 plan(registry, runs, goal) → list[ExperimentPlan]
 
-Calls a local QWEN model via Ollama (default: localhost:11434).
+Calls a local QWEN model via LM Studio (default: localhost:1234).
 Returns a ranked list of experiments to run next.
 Falls back to a rule-based ranker if QWEN is unavailable or
 returns malformed JSON.
@@ -1187,18 +1187,21 @@ reading the registry and run history — it never imports domain code.
 from __future__ import annotations
 
 import json
-import urllib.request
+import os
 import urllib.error
+import urllib.request
 from dataclasses import dataclass
-from typing import Any
 
-from memory.registry import PatternRegistry, RegistryEntry
+from memory.registry import PatternRegistry
 
 
-OLLAMA_URL   = "http://localhost:11434/api/generate"
-QWEN_MODEL   = "qwen2.5:14b"
-MAX_TOKENS   = 1024
-TEMPERATURE  = 0.3
+LM_STUDIO_URL = os.getenv(
+    "LM_STUDIO_URL",
+    "http://127.0.0.1:1234/v1/chat/completions",
+)
+QWEN_MODEL = os.getenv("LM_STUDIO_MODEL", "Qwen2.5-14B-Instruct")
+MAX_TOKENS = 1024
+TEMPERATURE = 0.3
 
 
 @dataclass
@@ -1298,17 +1301,20 @@ def _qwen_plan(
     prompt = _build_prompt(registry, run_history, goal, n_plans)
 
     payload = json.dumps({
-        "model":  QWEN_MODEL,
-        "prompt": prompt,
+        "model": QWEN_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "temperature": TEMPERATURE,
+        "max_tokens": MAX_TOKENS,
         "stream": False,
-        "options": {
-            "temperature": TEMPERATURE,
-            "num_predict": MAX_TOKENS,
-        },
     }).encode()
 
     req = urllib.request.Request(
-        OLLAMA_URL,
+        LM_STUDIO_URL,
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -1317,8 +1323,12 @@ def _qwen_plan(
     with urllib.request.urlopen(req, timeout=30) as resp:
         body = json.loads(resp.read())
 
-    raw = body.get("response", "")
-    # Strip any accidental markdown fences
+    choices = body.get("choices", [])
+    if not choices:
+        raise ValueError("LM Studio returned no choices")
+
+    message = choices[0].get("message", {})
+    raw = message.get("content", "")
     raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     parsed = json.loads(raw)
 

@@ -1,21 +1,22 @@
 # air-lab-os
 
-This repo uses a local Ollama server for the planner layer.
+This repo uses LM Studio for the planner layer.
 
 ## Local LLM setup
 
-Start Ollama and make sure `qwen2.5:14b` is available:
+Start the LM Studio local server and load `Qwen2.5-14B-Instruct`.
 
 ```bash
-brew services start ollama
-ollama pull qwen2.5:14b
+Open LM Studio
+Start the local inference server
+Load Qwen2.5-14B-Instruct
 ```
 
 The planner defaults are:
 
 ```bash
-OLLAMA_URL=http://localhost:11434/api/generate
-OLLAMA_MODEL=qwen2.5:14b
+LM_STUDIO_URL=http://127.0.0.1:1234/v1/chat/completions
+LM_STUDIO_MODEL=Qwen2.5-14B-Instruct
 ```
 
 You can override either variable in your shell if needed before running:
