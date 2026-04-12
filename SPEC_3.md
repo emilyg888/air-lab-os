@@ -1196,7 +1196,7 @@ from memory.registry import PatternRegistry, RegistryEntry
 
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
-QWEN_MODEL   = "qwen2.5:latest"
+QWEN_MODEL   = "qwen2.5:14b"
 MAX_TOKENS   = 1024
 TEMPERATURE  = 0.3
 

@@ -15,6 +15,7 @@ reading the registry and run history — it never imports domain code.
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 import urllib.error
 from dataclasses import dataclass
@@ -23,8 +24,8 @@ from typing import Any
 from memory.registry import PatternRegistry, RegistryEntry
 
 
-OLLAMA_URL   = "http://localhost:11434/api/generate"
-QWEN_MODEL   = "qwen2.5:latest"
+OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+QWEN_MODEL   = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
 MAX_TOKENS   = 1024
 TEMPERATURE  = 0.3
 
