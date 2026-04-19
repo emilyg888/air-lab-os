@@ -30,6 +30,7 @@ LM_STUDIO_URL = os.getenv(
 QWEN_MODEL = os.getenv("LM_STUDIO_MODEL", "Qwen2.5-14B-Instruct")
 MAX_TOKENS = 1024
 TEMPERATURE = 0.3
+PLANNER_TIMEOUT = float(os.getenv("LM_STUDIO_TIMEOUT", "90"))
 
 
 @dataclass
@@ -140,7 +141,7 @@ def _qwen_plan(
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=PLANNER_TIMEOUT) as resp:
         body = json.loads(resp.read())
 
     choices = body.get("choices", [])
