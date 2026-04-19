@@ -172,7 +172,12 @@ def main() -> None:
                         patterns[p.pattern_name].as_posix()
                         .replace("/", ".").removesuffix(".py")
                     )
-                    pattern = mod.get_pattern()
+                    try:
+                        pattern = mod.get_pattern(**(p.config or {}))
+                    except TypeError:
+                        # Pattern's get_pattern() does not accept overrides
+                        # — fall back to the baseline instance.
+                        pattern = mod.get_pattern()
                     print(f"  Round {round_n}: {p.pattern_name} — {p.rationale}")
                     result = run_experiment(pattern, handle, description=p.rationale)
                     print(
