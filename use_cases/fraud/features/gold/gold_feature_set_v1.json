@@ -1,0 +1,10 @@
+{
+  "name": "gold_feature_set_v1",
+  "features": [
+    "merchant_rarity",
+    "account_shared_merchant_count"
+  ],
+  "baseline_f1": 0.8656,
+  "created_at": "2026-04-11",
+  "notes": "Leakage-safe train-only relational reference set for the merchant_category fraud dataset. Current measured baseline is below the legacy ml_logistic baseline, so this set is versioned but not auto-promoted."
+}

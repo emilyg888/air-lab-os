@@ -3,21 +3,35 @@
 # Weights must sum to 1.0.
 # This is the DEFAULT policy. Use-case plugins may provide their own.
 
-version: "1.0"
+version: "1.1"
 
 weights:
-  primary_metric:  0.40   # domain metric (f1, accuracy, etc) — provided by RunResult
-  explainability:  0.25   # fraction of positive flags with non-empty explanation
-  latency:         0.20   # inverse-scaled: 0ms=1.0, max_ms=0.0, linear
-  cost:            0.15   # inverse-scaled: $0=1.0, max_per_1k=0.0, linear
+  primary_metric: 0.40
+  explainability: 0.25
+  latency: 0.20
+  cost: 0.15
 
 promotion:
-  working_threshold: 0.65  # min score to reach working tier (was: silver)
-  stable_threshold:  0.78  # min score to become promotion candidate (was: gold)
-  min_runs:          3     # min experiments before promotion eligible
+  working_threshold: 0.65
+  stable_threshold: 0.78
+  min_runs: 3
 
 latency:
-  max_ms: 500              # latency at which latency_score = 0.0
+  max_ms: 500
 
 cost:
-  max_per_1k: 0.10         # USD per 1k rows at which cost_score = 0.0
+  max_per_1k: 0.10
+
+rules:
+  primary_metric_floor: 0.1
+  stability_threshold: 0.05
+  penalty_factor: 0.5
+  stability_gap_threshold: 0.2
+  promotion_confidence_threshold: 0.7
+
+arena:
+  ranking:
+    stable_bonus: 1.1
+    unstable_bonus: 0.9
+  exploration:
+    max_runs_per_pattern: 5

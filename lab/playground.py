@@ -17,13 +17,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from core.evaluation import EvalMetrics, evaluate, load_policy
+from core.registry import PatternRegistry, RegistryEntry, append_run, update_registry
 from datasets.base import DatasetHandle
-from evaluation.evaluator import EvalMetrics, evaluate, load_policy
-from memory.registry import PatternRegistry, RegistryEntry, append_run
 from patterns.base import PatternHandler, RunResult
 
 RUNS_PATH     = Path("memory/runs.json")
 REGISTRY_PATH = Path("registry.json")
+MIN_SCORE_IMPROVEMENT = 0.001
 
 
 @dataclass
@@ -73,7 +74,7 @@ def run_experiment(
     timestamp = int(time.time())
     meta      = handle.meta
 
-    registry = PatternRegistry.load(runs_path, registry_path)
+    registry = PatternRegistry.load(registry_path=registry_path)
     entry    = registry.get(pattern.name)
     tier     = entry.tier if entry else "scratch"
 
@@ -85,7 +86,14 @@ def run_experiment(
         score   = metrics.score
 
         current_best = registry.best_score(pattern.name)
-        status = "keep" if (current_best is None or score > current_best) else "discard"
+        status = (
+            "keep"
+            if (
+                current_best is None
+                or score > current_best + MIN_SCORE_IMPROVEMENT
+            )
+            else "discard"
+        )
 
         exp = ExperimentResult(
             pattern      = pattern.name,
@@ -121,8 +129,14 @@ def run_experiment(
         )
 
     _write_run(exp, runs_path)
-    registry = PatternRegistry.load(runs_path, registry_path)
-    registry.save(registry_path)
+    if exp.status != "crash":
+        update_registry(
+            pattern_name=exp.pattern,
+            score=exp.score,
+            metadata={"dataset": exp.dataset_id, "description": exp.description},
+            policy=load_policy(),
+            path=registry_path,
+        )
 
     return exp
 

@@ -1,0 +1,162 @@
+
+<h2 class="sr-only">air-lab-os generic engine boundaries — what the engine owns vs what plugins provide</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.wrap{padding:16px 0}
+.row{display:grid;gap:10px;margin-bottom:10px}
+.r2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.r3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:14px}
+.lbl{font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.owns{background:#E1F5EE;border:0.5px solid #5DCAA5;border-radius:8px;padding:10px;margin-bottom:6px}
+.owns:last-child{margin-bottom:0}
+.plugin{background:#EEEDFE;border:0.5px solid #AFA9EC;border-radius:8px;padding:10px;margin-bottom:6px}
+.plugin:last-child{margin-bottom:0}
+.box-title{font-size:12px;font-weight:500;margin-bottom:3px}
+.owns .box-title{color:#085041}
+.plugin .box-title{color:#3C3489}
+.box-body{font-size:11px;line-height:1.5}
+.owns .box-body{color:#0F6E56}
+.plugin .box-body{color:#534AB7}
+.iface{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:10px;margin-bottom:6px}
+.iface:last-child{margin-bottom:0}
+.iface-name{font-size:11px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.iface-code{font-size:10px;font-family:var(--font-mono);color:var(--color-text-secondary);line-height:1.8}
+.iface-req{color:var(--color-text-primary)}
+.schema-row{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:11px}
+.schema-row:last-child{border-bottom:none}
+.schema-key{font-family:var(--font-mono);color:var(--color-text-primary);min-width:140px}
+.schema-type{color:var(--color-text-tertiary);font-family:var(--font-mono);font-size:10px;min-width:60px}
+.schema-note{color:var(--color-text-secondary)}
+.change-row{display:flex;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:11px}
+.change-row:last-child{border-bottom:none}
+.change-field{font-family:var(--font-mono);color:var(--color-text-primary);min-width:160px;font-size:10px}
+.change-body{color:var(--color-text-secondary);line-height:1.4}
+.tag{display:inline-block;font-size:9px;font-weight:500;padding:1px 6px;border-radius:20px;margin-left:4px;vertical-align:middle}
+.tag-add{background:#E1F5EE;color:#085041}
+.tag-mod{background:#FAEEDA;color:#633806}
+.tag-rm{background:#FCEBEB;color:#791F1F}
+</style>
+
+<div class="wrap">
+
+<div class="row r2">
+  <div class="card">
+    <div class="lbl">What air-lab-os owns — generic, domain-agnostic</div>
+    <div class="owns">
+      <div class="box-title">lab/playground.py</div>
+      <div class="box-body">Runs one experiment. Calls PatternHandler.run(DatasetHandle) → RunResult. Records to runs.json. Knows nothing about fraud.</div>
+    </div>
+    <div class="owns">
+      <div class="box-title">lab/arena.py</div>
+      <div class="box-body">Compares N patterns on same dataset. Returns ranking. Promotes winner to next tier. Domain-agnostic.</div>
+    </div>
+    <div class="owns">
+      <div class="box-title">evaluation/evaluator.py</div>
+      <div class="box-body">Scores a RunResult against a ScoringPolicy. Reads weights from YAML. Returns composite float. Never hardcodes a metric.</div>
+    </div>
+    <div class="owns">
+      <div class="box-title">memory/registry.py</div>
+      <div class="box-body">Rebuilds pattern state from runs.json. Manages bronze → silver → gold transitions. Persists registry.json.</div>
+    </div>
+    <div class="owns">
+      <div class="box-title">runtime/llm.py</div>
+      <div class="box-body">QWEN plan layer. Reads registry + run history. Returns ranked ExperimentPlan list. No domain knowledge.</div>
+    </div>
+    <div class="owns">
+      <div class="box-title">runtime/config.py</div>
+      <div class="box-body">Loads ScoringPolicy from YAML. Validates weights sum to 1.0. Read-only after load.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">What plugins provide — use-case specific</div>
+    <div class="plugin">
+      <div class="box-title">PatternHandler (ABC)</div>
+      <div class="box-body">Implements run(handle: DatasetHandle) → RunResult. Fraud detector is one implementation. Any domain provides its own.</div>
+    </div>
+    <div class="plugin">
+      <div class="box-title">DatasetHandle (ABC)</div>
+      <div class="box-body">Implements eval_df() → DataFrame, train_df() → DataFrame, meta → dict. bb_datasets is one implementation.</div>
+    </div>
+    <div class="plugin">
+      <div class="box-title">scoring_policy.yaml</div>
+      <div class="box-body">Provided per use case. Fraud brings its own weights (f1 40%, expl 25%…). Marketing brings different weights. Engine reads whichever is active.</div>
+    </div>
+    <div class="plugin">
+      <div class="box-title">patterns/scratch|working|stable</div>
+      <div class="box-body">Pattern files live here — Python classes implementing PatternHandler. Promoted physically between directories as tier advances.</div>
+    </div>
+    <div class="plugin" style="border:0.5px dashed #AFA9EC">
+      <div class="box-title">use-cases/ (Phase 2)</div>
+      <div class="box-body">fraud/, marketing/, credit_risk/ — each a self-contained plugin directory with patterns, scoring policy, and dataset handle implementation.</div>
+    </div>
+  </div>
+</div>
+
+<div class="row r2">
+  <div class="card">
+    <div class="lbl">Plugin contracts — the two ABCs air-lab-os defines</div>
+    <div class="iface">
+      <div class="iface-name">PatternHandler — what every pattern must implement</div>
+      <div class="iface-code"><span class="iface-req">name: str</span>                  # unique pattern id
+<span class="iface-req">tier: str</span>                  # scratch | working | stable
+<span class="iface-req">run(handle) → RunResult</span>   # core method
+describe() → dict          # hyperparams for logging
+
+RunResult:
+<span class="iface-req">  flags: list[bool]</span>        # per-row prediction
+<span class="iface-req">  scores: list[float]</span>      # [0.0, 1.0] confidence
+<span class="iface-req">  explanation: list[str]</span>   # "" if no explanation
+  latency_ms: float        # set by base class
+  cost_per_1k: float       # 0.0 for local</div>
+    </div>
+    <div class="iface">
+      <div class="iface-name">DatasetHandle — what every dataset must implement</div>
+      <div class="iface-code"><span class="iface-req">eval_df() → DataFrame</span>     # fixed 20% eval slice
+<span class="iface-req">train_df() → DataFrame</span>    # fixed 80% train slice
+<span class="iface-req">labels() → list[bool]</span>     # ground truth for eval
+<span class="iface-req">meta → DatasetMeta</span>        # name, domain, tier…
+schema → dict              # column types
+label_column: str          # e.g. "fraud_flag"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">registry.json schema — what changes from current</div>
+    <div class="change-row">
+      <div class="change-field">status</div>
+      <div class="change-body">Keep. Rename values: "silver"→"working", "bronze"→"scratch", "gold"→"stable" to match directory names. <span class="tag tag-mod">rename</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">confidence</div>
+      <div class="change-body">Keep. Best composite score across all keep runs. <span class="tag tag-mod">keep</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">tier</div>
+      <div class="change-body">Add as explicit field separate from run status. "scratch" | "working" | "stable". <span class="tag tag-add">add</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">domain</div>
+      <div class="change-body">Add. Which use case this pattern belongs to. "fraud" | "marketing" | … <span class="tag tag-add">add</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">dataset_id</div>
+      <div class="change-body">Add. Which dataset the best score was achieved on. Enables cross-dataset comparison. <span class="tag tag-add">add</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">promotion_candidate</div>
+      <div class="change-body">Keep. Computed from score threshold + min_runs. <span class="tag tag-mod">keep</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">best_precision / recall / f1</div>
+      <div class="change-body">Generalise to best_metrics: dict — domain-agnostic. Fraud uses precision/recall/f1, other domains use whatever metrics apply. <span class="tag tag-mod">generalise</span></div>
+    </div>
+    <div class="change-row">
+      <div class="change-field">pattern_path</div>
+      <div class="change-body">Add. Relative path to the pattern file in patterns/scratch|working|stable. <span class="tag tag-add">add</span></div>
+    </div>
+  </div>
+</div>
+
+</div>

@@ -1,0 +1,50 @@
+{
+  "account_max_merchant_exposure": {
+    "delta_f1": 0.0,
+    "status": "reject"
+  },
+  "account_shared_merchant_count": {
+    "delta_f1": 0.0041,
+    "status": "gold"
+  },
+  "amount_to_balance_ratio": {
+    "delta_f1": -0.003,
+    "status": "reject"
+  },
+  "behaviour_drift": {
+    "delta_f1": 0.0,
+    "status": "reject"
+  },
+  "behaviour_drift_v2": {
+    "delta_f1": 0.0,
+    "status": "reject"
+  },
+  "burst_density_10m": {
+    "delta_f1": -0.0005,
+    "status": "reject"
+  },
+  "gap_change": {
+    "delta_f1": 0.0,
+    "status": "reject"
+  },
+  "high_risk_debit_flag": {
+    "delta_f1": 0.0,
+    "status": "reject"
+  },
+  "merchant_account_count": {
+    "delta_f1": -0.003,
+    "status": "reject"
+  },
+  "merchant_diversity": {
+    "delta_f1": -0.0045,
+    "status": "reject"
+  },
+  "merchant_rarity": {
+    "delta_f1": 0.0068,
+    "status": "gold"
+  },
+  "same_ts_amount_pressure": {
+    "delta_f1": 0.0,
+    "status": "reject"
+  }
+}

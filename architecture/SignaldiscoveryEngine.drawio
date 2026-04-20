@@ -1,0 +1,128 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="XojUXvYlsTSU8vzhbBOc">
+    <mxGraphModel dx="174373" dy="119244" grid="1" gridSize="1" guides="1" tooltips="1" connect="1" arrows="1" fold="0" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="vQscuov0rRj8pPbwZavg-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#e6f0fa;strokeColor=#666666;" value="Execution Engine&#xa;(Exploration / Execution)" vertex="1">
+          <mxGeometry height="70" width="260" x="-3130" y="-810" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#e6f0fa;strokeColor=#666666;" value="Evaluation&#xa;(Precision / Recall / F1)" vertex="1">
+          <mxGeometry height="70" width="260" x="-3130" y="-670" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#e6f0fa;strokeColor=#666666;" value="Promotion + EMA&#xa;(confidence update)" vertex="1">
+          <mxGeometry height="70" width="260" x="-3130" y="-580" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=18;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" value="&lt;font style=&quot;font-size: 29px;&quot;&gt;Enterprise Data &amp;amp; AI Platform (Banking, Insurance, Medical Care)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="940" width="1540" x="-3740" y="-950" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-5" edge="1" parent="vQscuov0rRj8pPbwZavg-4" source="vQscuov0rRj8pPbwZavg-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="vQscuov0rRj8pPbwZavg-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-6" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=18;" value="CONTROL BOUNDARY&#xa;Certified Signal Contract&#xa;&#xa;AI can only access validated signals" vertex="1">
+          <mxGeometry height="140" width="256.6666666666667" x="749.9982051282052" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-7" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#579ED1);strokeColor=#9673a6;fontSize=24;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" value="Probabilistic Reasoning Layer (AI / LLM)" vertex="1">
+          <mxGeometry height="640" width="463.59" x="1046.41" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-8" edge="1" parent="vQscuov0rRj8pPbwZavg-7" source="vQscuov0rRj8pPbwZavg-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=18;" target="vQscuov0rRj8pPbwZavg-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-9" parent="vQscuov0rRj8pPbwZavg-7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=18;" value="RAG Retrieval&#xa;(Docs, Policies, Knowledge Base)" vertex="1">
+          <mxGeometry height="90" width="185.436" x="37.0872" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-10" edge="1" parent="vQscuov0rRj8pPbwZavg-7" source="vQscuov0rRj8pPbwZavg-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=18;" target="vQscuov0rRj8pPbwZavg-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-11" parent="vQscuov0rRj8pPbwZavg-7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=18;" value="LLM Reasoning&lt;br&gt;&lt;br&gt;• Explanin&lt;br&gt;• Pattern interpretation&lt;br&gt;• Scenario reasoning&lt;br&gt;• Hypothesis generation" vertex="1">
+          <mxGeometry height="190" width="185.44" x="238.18" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-12" parent="vQscuov0rRj8pPbwZavg-7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=18;" value="Business Options Generation&#xa;&#xa;Recommendations for review" vertex="1">
+          <mxGeometry height="130" width="185.44" x="53.59" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-13" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;fontSize=24;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" value="Human Decision Layer (Governance)" vertex="1">
+          <mxGeometry height="160" width="433.59" x="1046.41" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-14" parent="vQscuov0rRj8pPbwZavg-13" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#392F3F);strokeColor=#666666;fontSize=18;" value="• Risk / Fraud Analyst&#xa;• Business Decision Maker&#xa;• Compliance / Audit&#xa;&#xa;Final decision • Override • Accountability" vertex="1">
+          <mxGeometry height="150" width="360.31" x="49.69" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-15" edge="1" parent="vQscuov0rRj8pPbwZavg-4" source="vQscuov0rRj8pPbwZavg-7" style="endArrow=block;strokeColor=#9673a6;fontSize=18;" target="vQscuov0rRj8pPbwZavg-13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-16" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#ffffff;strokeColor=#666666;" value="User Intent" vertex="1">
+          <mxGeometry height="60" width="180" x="50.51" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-17" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#e6f0fa;strokeColor=#666666;" value="Pattern Selector&#xa;(deterministic)" vertex="1">
+          <mxGeometry height="70" width="240" x="270.51" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-18" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#eaf7ec;strokeColor=#666666;" value="Fraud Detectors&#xa;v1 (rules)&#xa;v2–v6 (experiments)" vertex="1">
+          <mxGeometry height="110" width="240" x="270.51" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-19" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#ffffff;strokeColor=#666666;" value="Pattern Registry&#xa;(ranked by fitness)" vertex="1">
+          <mxGeometry height="70" width="240" x="270.51" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-20" edge="1" parent="vQscuov0rRj8pPbwZavg-4" source="vQscuov0rRj8pPbwZavg-16" style="fontSize=18;" target="vQscuov0rRj8pPbwZavg-17" />
+        <mxCell id="vQscuov0rRj8pPbwZavg-21" edge="1" parent="vQscuov0rRj8pPbwZavg-4" source="vQscuov0rRj8pPbwZavg-23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="vQscuov0rRj8pPbwZavg-6">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700.6382051282469" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-22" edge="1" parent="vQscuov0rRj8pPbwZavg-4" source="vQscuov0rRj8pPbwZavg-19" style="fontSize=18;" target="vQscuov0rRj8pPbwZavg-17" />
+        <mxCell id="vQscuov0rRj8pPbwZavg-23" parent="vQscuov0rRj8pPbwZavg-4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#579ED1);strokeColor=#6c8ebf;fontSize=24;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=top;align=center;" value="Deterministic Control Layer (Governed Data Platform)" vertex="1">
+          <mxGeometry height="830" width="691.0256410256411" x="-20.002820512820513" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-24" parent="vQscuov0rRj8pPbwZavg-23" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;" value="RAW&#xa;Ingestion, DQ, Lineage" vertex="1">
+          <mxGeometry height="103.75" width="197.43589743589746" x="19.743589743589748" y="64.84375" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-25" parent="vQscuov0rRj8pPbwZavg-23" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;" value="CURATED&lt;br&gt;Standardised, Integrated Data" vertex="1">
+          <mxGeometry height="103.75" width="197.43589743589746" x="246.79487179487182" y="64.84375" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-26" parent="vQscuov0rRj8pPbwZavg-23" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;" value="SEMANTIC LAYER&#xa;Business Definitions, Certified Views" vertex="1">
+          <mxGeometry height="103.75" width="197.43589743589746" x="473.8461538461539" y="64.84375" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-27" parent="vQscuov0rRj8pPbwZavg-23" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#99CCFF);strokeColor=light-dark(#6C8EBF,#FFFFFF);fontSize=18;fontColor=light-dark(#FFF2CC,#1D293B);" value="&lt;b&gt;Signal Discovery Engine&lt;br&gt;&lt;br&gt;Generate → Evaluate → Promote / Reject&lt;br&gt;Feature Registry + Signal Memory&lt;br&gt;&lt;br&gt;Deterministic • Auditable • Expainable&lt;/b&gt;" vertex="1">
+          <mxGeometry height="168.59375" width="394.8717948717949" x="148.0769230769231" y="427.96875" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-28" parent="vQscuov0rRj8pPbwZavg-23" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=18;" value="&lt;h3 data-section-id=&quot;iyzea6&quot; data-start=&quot;394&quot; data-end=&quot;422&quot;&gt;&lt;span role=&quot;text&quot;&gt;&lt;strong data-start=&quot;398&quot; data-end=&quot;422&quot;&gt;TRUSTED SIGNAL LAYER&lt;/strong&gt;&lt;/span&gt;&lt;/h3&gt;&lt;p data-start=&quot;423&quot; data-end=&quot;466&quot;&gt;The signals that matter for better decisions&lt;/p&gt;&lt;ul data-start=&quot;468&quot; data-end=&quot;553&quot;&gt;&lt;li data-section-id=&quot;1c92m5a&quot; data-start=&quot;468&quot; data-end=&quot;502&quot;&gt;Proven • Consistent • Continuously validated against real business behaviour&lt;/li&gt;&lt;/ul&gt;" vertex="1">
+          <mxGeometry height="181.5625" width="394.8717948717949" x="148.0769230769231" y="220.46875" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-29" parent="vQscuov0rRj8pPbwZavg-23" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=18;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" value="Runtime Orchestration (Deterministic)" vertex="1">
+          <mxGeometry height="157.5" width="651.5384615384617" x="19.743589743589748" y="622.5" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-30" parent="vQscuov0rRj8pPbwZavg-29" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;" value="Query Builder&#xa;(SQL over Certified Views)" vertex="1">
+          <mxGeometry height="108.5" width="177.69" x="19.74" y="31.5" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-31" parent="vQscuov0rRj8pPbwZavg-29" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;" value="Policy Enforcement Point (PEP)&#xa;&#xa;• RBAC / ABAC&#xa;• Allowed Views/Fields&#xa;• Guardrails" vertex="1">
+          <mxGeometry height="160" width="197.44" x="227.05" y="-10" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-32" parent="vQscuov0rRj8pPbwZavg-29" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;" value="Query Engine" vertex="1">
+          <mxGeometry height="100" width="177.69" x="454.1" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-33" edge="1" parent="vQscuov0rRj8pPbwZavg-29" source="vQscuov0rRj8pPbwZavg-30" style="endArrow=block;strokeColor=#6c8ebf;fontSize=18;" target="vQscuov0rRj8pPbwZavg-31">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-34" edge="1" parent="vQscuov0rRj8pPbwZavg-29" source="vQscuov0rRj8pPbwZavg-31" style="endArrow=block;strokeColor=#6c8ebf;fontSize=18;" target="vQscuov0rRj8pPbwZavg-32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-35" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fillColor=light-dark(#FFFFFF,#99CCFF);fontColor=light-dark(#FFF2CC,#1D293B);" value="&lt;h3 data-section-id=&quot;1i073i8&quot; data-start=&quot;50&quot; data-end=&quot;74&quot;&gt;🔥 What this enables&lt;/h3&gt;&lt;ul data-start=&quot;76&quot; data-end=&quot;235&quot;&gt;&lt;li data-section-id=&quot;1kv9t4f&quot; data-start=&quot;76&quot; data-end=&quot;128&quot;&gt;&lt;strong data-start=&quot;78&quot; data-end=&quot;93&quot;&gt;AI Copilots&lt;/strong&gt; → grounded, consistent reasoning&lt;/li&gt;&lt;li data-section-id=&quot;ae2cks&quot; data-start=&quot;129&quot; data-end=&quot;177&quot;&gt;&lt;strong data-start=&quot;131&quot; data-end=&quot;144&quot;&gt;ML Models&lt;/strong&gt; → stronger inputs, less tuning&lt;/li&gt;&lt;li data-section-id=&quot;1aqmmla&quot; data-start=&quot;178&quot; data-end=&quot;235&quot;&gt;&lt;strong data-start=&quot;180&quot; data-end=&quot;198&quot;&gt;Business decision making&lt;/strong&gt;→ fewer dashboards, faster answers&lt;/li&gt;&lt;/ul&gt;&lt;div&gt;Across domains, the Signal Discovery Engine does the same thing —&lt;br&gt;it separates what matters from what doesn’t, and turns data into decision-ready signal.&lt;/div&gt;" vertex="1">
+          <mxGeometry height="240" width="1520" x="-3760" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-36" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#99CCFF);strokeColor=light-dark(#DAE8FC,#99CCFF);fontSize=20;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="Business Use Cases" vertex="1">
+          <mxGeometry height="780" width="1510" x="-3770" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-37" parent="vQscuov0rRj8pPbwZavg-36" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#579ED1);strokeColor=light-dark(#DAE8FC,#99CCFF);fontSize=18;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="&lt;font style=&quot;font-size: 24px;&quot;&gt;Risk &amp;amp; Fraud&lt;/font&gt;&lt;br&gt;&lt;br&gt;Traditional: static rules, periodic refresh&lt;br&gt;&lt;br&gt;With Signal Engine:&lt;br&gt;• Discover new fraud signals continuously&lt;br&gt;• Reject weak patterns automatically&lt;br&gt;• Promote only proven signals&lt;br&gt;&lt;br&gt;Outcome: earlier detection, less rule sprawl, explainable decisions" vertex="1">
+          <mxGeometry height="326.7567567567567" width="650.86" x="52.07" y="36.89108108108108" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-38" parent="vQscuov0rRj8pPbwZavg-36" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#579ED1);strokeColor=light-dark(#DAE8FC,#99CCFF);fontSize=18;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="&lt;font style=&quot;font-size: 24px;&quot;&gt;Customer &amp;amp; Revenue Analytics&lt;/font&gt;&lt;br&gt;&lt;br&gt;Problem: too many metrics, unclear drivers&lt;br&gt;&lt;br&gt;With Signal Engine:&lt;br&gt;• Generate → test → converge on key drivers&lt;br&gt;&lt;br&gt;Outcome:&lt;br&gt;• Identify true churn drivers&lt;br&gt;• Surface real upsell signals&lt;br&gt;• Move from dashboards → causal insight" vertex="1">
+          <mxGeometry height="326.7567567567567" width="650.86" x="755" y="36.89108108108108" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-39" parent="vQscuov0rRj8pPbwZavg-36" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#579ED1);strokeColor=light-dark(#DAE8FC,#99CCFF);fontSize=18;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="&lt;font style=&quot;font-size: 24px;&quot;&gt;Healthcare / Clinical&lt;/font&gt;&lt;br&gt;&lt;br&gt;Problem: massive feature space, noisy signals&lt;br&gt;&lt;br&gt;With Signal Engine:&lt;br&gt;• Systematically reject weak indicators&lt;br&gt;• Isolate true predictors&lt;br&gt;&lt;br&gt;Outcome:&lt;br&gt;• Better deterioration detection&lt;br&gt;• Improved treatment insights&lt;br&gt;• Reduced risk from false signals" vertex="1">
+          <mxGeometry height="326.7567567567567" width="650.86" x="52.07" y="416.3505405405405" as="geometry" />
+        </mxCell>
+        <mxCell id="vQscuov0rRj8pPbwZavg-40" parent="vQscuov0rRj8pPbwZavg-36" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#DAE8FC,#579ED1);strokeColor=light-dark(#DAE8FC,#99CCFF);fontSize=18;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="&lt;font style=&quot;font-size: 24px;&quot;&gt;Operations / IoT / Predictive Maintenance&lt;/font&gt;&lt;br&gt;&lt;br&gt;Problem: thousands of sensor signals, unclear relevance&lt;br&gt;&lt;br&gt;With Signal Engine:&lt;br&gt;• Test and validate sensor features&lt;br&gt;• Promote only useful signals&lt;br&gt;&lt;br&gt;Outcome:&lt;br&gt;• Better failure prediction&lt;br&gt;• Stronger anomaly detection&lt;br&gt;• Reduced noise and false alarms" vertex="1">
+          <mxGeometry height="326.7567567567567" width="650.86" x="755" y="416.3505405405405" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

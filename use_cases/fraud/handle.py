@@ -14,19 +14,47 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from functools import cached_property
+import importlib
 
 import pandas as pd
 
-# bb_datasets lives as a sibling repo — add to sys.path so it's importable.
-# Note: append (not insert at 0) because bb_datasets has its own `datasets/`
-# package that would otherwise shadow air-lab-os/datasets/base.py.
 _BB_PATH = Path(__file__).parent.parent.parent.parent / "bb_datasets"
-if str(_BB_PATH) not in sys.path:
-    sys.path.append(str(_BB_PATH))
-
-from fraud.load import load_transactions       # noqa: E402
-from fraud.features import build_features      # noqa: E402
 from datasets.base import DatasetHandle, DatasetMeta
+
+
+def _import_bb_fraud_modules():
+    """
+    Import bb_datasets' fraud modules without permanently stealing the
+    top-level `datasets` package name from this repo.
+    """
+    preserved: dict[str, object] = {}
+    bb_modules: dict[str, object] = {}
+
+    for name in list(sys.modules):
+        if name == "datasets" or name.startswith("datasets."):
+            preserved[name] = sys.modules[name]
+            del sys.modules[name]
+
+    sys.path.insert(0, str(_BB_PATH))
+    try:
+        load_mod = importlib.import_module("fraud.load")
+        features_mod = importlib.import_module("fraud.features")
+        for name, module in list(sys.modules.items()):
+            if name == "datasets" or name.startswith("datasets."):
+                bb_modules[name] = module
+    finally:
+        try:
+            sys.path.remove(str(_BB_PATH))
+        except ValueError:
+            pass
+        for name in list(bb_modules):
+            sys.modules.pop(name, None)
+        sys.modules.update(preserved)
+
+    return load_mod.load_transactions, features_mod.build_features
+
+
+load_transactions, build_features = _import_bb_fraud_modules()
 
 
 class FraudHandle(DatasetHandle):

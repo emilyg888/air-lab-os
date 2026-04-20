@@ -6,6 +6,7 @@ Usage:
     uv run python main.py run --pattern <name> --dataset <module>
     uv run python main.py arena --dataset <module>
     uv run python main.py loop --dataset <module>
+    uv run python scripts/promote.py [--apply] [--reflect-filesystem]
 
 The engine is domain-agnostic. Use-case plugins are imported
 dynamically via --dataset. Patterns are discovered from the
@@ -19,7 +20,8 @@ import importlib
 import json
 from pathlib import Path
 
-from memory.registry import PatternRegistry, RUNS_PATH, REGISTRY_PATH
+from core.dataset_loader import load_dataset
+from core.registry import PatternRegistry, RUNS_PATH, REGISTRY_PATH, load_registry
 
 
 def _load_runs() -> list[dict]:
@@ -44,23 +46,35 @@ def _discover_patterns() -> dict[str, Path]:
 
 def cmd_status() -> None:
     """Print current registry state."""
-    registry = PatternRegistry.load()
-    entries  = registry.all()
-    if not entries:
+    registry = load_registry()
+    if not registry:
         print("Registry is empty — no experiments run yet.")
         return
-    print(f"\n{'Pattern':<30} {'Tier':<10} {'Score':>7} {'Runs':>5} {'Status':<10}")
-    print("-" * 68)
-    for e in entries:
-        cand = " [promote?]" if e.promotion_candidate else ""
+
+    entries = sorted(
+        registry.items(),
+        key=lambda item: item[1].get("confidence", 0.0),
+        reverse=True,
+    )
+
+    print(
+        f"\n{'Pattern':<30} {'Status':<10} {'Candidate':<10} "
+        f"{'Avg':>7} {'Last':>7} {'Runs':>5} {'Stable':<6}"
+    )
+    print("-" * 88)
+    for pattern, entry in entries:
         print(
-            f"{e.pattern:<30} {e.tier:<10} "
-            f"{e.confidence:>7.4f} {e.runs:>5} "
-            f"{e.last_status:<10}{cand}"
+            f"{pattern:<30} {entry.get('status', 'bronze'):<10} "
+            f"{(entry.get('promotion_candidate') or '-'):<10} "
+            f"{entry.get('avg_score', 0.0):>7.4f} {entry.get('last_score', 0.0):>7.4f} "
+            f"{entry.get('runs', 0):>5} {str(entry.get('is_stable', False)):<6}"
         )
-    candidates = registry.promotion_candidates()
+    candidates = [
+        pattern for pattern, entry in entries
+        if entry.get("promotion_candidate")
+    ]
     if candidates:
-        print(f"\n  Promotion candidates: {[e.pattern for e in candidates]}")
+        print(f"\n  Promotion candidates: {candidates}")
 
 
 def main() -> None:
@@ -73,14 +87,14 @@ def main() -> None:
 
     run_p = subparsers.add_parser("run", help="Run one experiment")
     run_p.add_argument("--pattern",     required=True, help="Pattern name")
-    run_p.add_argument("--dataset",     required=True, help="Dataset plugin module")
+    run_p.add_argument("--dataset",     required=True, help="Dataset id or DatasetHandle module")
     run_p.add_argument("--description", default="",    help="Run description")
 
     arena_p = subparsers.add_parser("arena", help="Compare all patterns")
-    arena_p.add_argument("--dataset", required=True, help="Dataset plugin module")
+    arena_p.add_argument("--dataset", required=True, help="Dataset id or DatasetHandle module")
 
     loop_p = subparsers.add_parser("loop", help="Run autonomous experiment loop")
-    loop_p.add_argument("--dataset", required=True, help="Dataset plugin module")
+    loop_p.add_argument("--dataset", required=True, help="Dataset id or DatasetHandle module")
     loop_p.add_argument("--goal",    default="maximise composite score")
     loop_p.add_argument("--rounds",  type=int, default=0,
                          help="Max rounds (0 = run until interrupted)")
@@ -91,8 +105,7 @@ def main() -> None:
         cmd_status()
         return
 
-    dataset_module = importlib.import_module(args.dataset)
-    handle = dataset_module.get_handle()
+    handle = load_dataset(args.dataset)
 
     if args.command == "run":
         from lab.playground import run_experiment
@@ -159,7 +172,12 @@ def main() -> None:
                         patterns[p.pattern_name].as_posix()
                         .replace("/", ".").removesuffix(".py")
                     )
-                    pattern = mod.get_pattern()
+                    try:
+                        pattern = mod.get_pattern(**(p.config or {}))
+                    except TypeError:
+                        # Pattern's get_pattern() does not accept overrides
+                        # — fall back to the baseline instance.
+                        pattern = mod.get_pattern()
                     print(f"  Round {round_n}: {p.pattern_name} — {p.rationale}")
                     result = run_experiment(pattern, handle, description=p.rationale)
                     print(

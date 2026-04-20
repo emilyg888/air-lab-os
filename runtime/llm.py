@@ -3,7 +3,7 @@ QWEN plan layer — generates the next experiment queue.
 
 plan(registry, runs, goal) → list[ExperimentPlan]
 
-Calls a local QWEN model via Ollama (default: localhost:11434).
+Calls a local QWEN model via LM Studio (default: localhost:1234).
 Returns a ranked list of experiments to run next.
 Falls back to a rule-based ranker if QWEN is unavailable or
 returns malformed JSON.
@@ -15,18 +15,22 @@ reading the registry and run history — it never imports domain code.
 from __future__ import annotations
 
 import json
-import urllib.request
+import os
 import urllib.error
+import urllib.request
 from dataclasses import dataclass
-from typing import Any
 
-from memory.registry import PatternRegistry, RegistryEntry
+from core.registry import PatternRegistry
 
 
-OLLAMA_URL   = "http://localhost:11434/api/generate"
-QWEN_MODEL   = "qwen2.5:latest"
-MAX_TOKENS   = 1024
-TEMPERATURE  = 0.3
+LM_STUDIO_URL = os.getenv(
+    "LM_STUDIO_URL",
+    "http://127.0.0.1:1234/v1/chat/completions",
+)
+QWEN_MODEL = os.getenv("LM_STUDIO_MODEL", "Qwen2.5-14B-Instruct")
+MAX_TOKENS = 1024
+TEMPERATURE = 0.3
+PLANNER_TIMEOUT = float(os.getenv("LM_STUDIO_TIMEOUT", "90"))
 
 
 @dataclass
@@ -65,11 +69,12 @@ def _build_prompt(
     registry_summary = [
         {
             "pattern":   e.pattern,
-            "tier":      e.tier,
+            "status":    e.status,
+            "avg_score": e.avg_score,
+            "last_score": e.last_score,
             "confidence": e.confidence,
             "runs":      e.runs,
-            "last_status": e.last_status,
-            "promotion_candidate": e.promotion_candidate,
+            "is_stable": e.is_stable,
         }
         for e in entries
     ]
@@ -92,7 +97,7 @@ Rules:
 - Prioritise patterns with few runs and high potential
 - Avoid repeating configs that already failed
 - Suggest hyperparameter variations for promising patterns
-- Consider patterns in 'scratch' tier that have never been tried
+- Consider patterns in 'bronze' status that have never been tried
 - Return ONLY valid JSON — no preamble, no markdown, no explanation
 
 Return exactly this JSON structure:
@@ -117,26 +122,34 @@ def _qwen_plan(
     prompt = _build_prompt(registry, run_history, goal, n_plans)
 
     payload = json.dumps({
-        "model":  QWEN_MODEL,
-        "prompt": prompt,
+        "model": QWEN_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "temperature": TEMPERATURE,
+        "max_tokens": MAX_TOKENS,
         "stream": False,
-        "options": {
-            "temperature": TEMPERATURE,
-            "num_predict": MAX_TOKENS,
-        },
     }).encode()
 
     req = urllib.request.Request(
-        OLLAMA_URL,
+        LM_STUDIO_URL,
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=PLANNER_TIMEOUT) as resp:
         body = json.loads(resp.read())
 
-    raw = body.get("response", "")
+    choices = body.get("choices", [])
+    if not choices:
+        raise ValueError("LM Studio returned no choices")
+
+    message = choices[0].get("message", {})
+    raw = message.get("content", "")
     raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     parsed = json.loads(raw)
 
@@ -175,29 +188,29 @@ def _rule_based_plan(
                 priority     = len(plans) + 1,
             ))
 
-    scratch = sorted(registry.by_tier("scratch"), key=lambda e: e.runs)
-    for e in scratch:
+    bronze = sorted(registry.by_tier("bronze"), key=lambda e: e.runs)
+    for e in bronze:
         if len(plans) >= n_plans:
             break
         if not any(p.pattern_name == e.pattern for p in plans):
             plans.append(ExperimentPlan(
                 pattern_name = e.pattern,
-                rationale    = f"scratch tier, only {e.runs} runs — needs more data",
+                rationale    = f"bronze status, only {e.runs} runs — needs more data",
                 config       = {},
                 priority     = len(plans) + 1,
             ))
 
-    working = sorted(
-        registry.by_tier("working"),
+    silver = sorted(
+        registry.by_tier("silver"),
         key=lambda e: e.confidence,
         reverse=True,
     )
-    for e in working:
+    for e in silver:
         if len(plans) >= n_plans:
             break
         plans.append(ExperimentPlan(
             pattern_name = e.pattern,
-            rationale    = f"working tier, score {e.confidence:.3f} — push toward stable",
+            rationale    = f"silver status, confidence {e.confidence:.3f} — push toward gold",
             config       = {},
             priority     = len(plans) + 1,
         ))

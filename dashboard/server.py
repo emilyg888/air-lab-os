@@ -34,14 +34,12 @@ DEFAULT_REGISTRY = REPO_ROOT / "registry.json"
 DEFAULT_POLICY = REPO_ROOT / "scoring_policy.yaml"
 DEFAULT_USE_CASES_DIR = REPO_ROOT / "use_cases"
 
-# Map core.registry status → tier label used by the UI badges.
 STATUS_TO_TIER_LABEL = {
     "bronze": "bronze",
     "silver": "silver",
     "gold": "gold",
 }
 
-# Friendly names for well-known use-case slugs. Falls back to Title Case.
 USE_CASE_DISPLAY_NAMES = {
     "fraud": "Fraud Detection",
 }
@@ -98,10 +96,6 @@ FEATURE_EXPERIMENT_SNAPSHOT = {
 
 
 def _scan_use_case_patterns(use_cases_dir: Path) -> dict[str, str]:
-    """
-    Walk use_cases/*/patterns/*.py and return a map of
-    pattern_name (file stem) → use_case slug (directory name).
-    """
     mapping: dict[str, str] = {}
     if not use_cases_dir.exists():
         return mapping
@@ -123,18 +117,6 @@ def detect_use_cases(
     registry_keys: list[str],
     use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
 ) -> dict[str, Any]:
-    """
-    Figure out which use case(s) the registered patterns belong to by
-    matching pattern names against use_cases/*/patterns/*.py files.
-
-    Returns:
-        {
-          "current": "Fraud Detection",   # dominant use case (most patterns)
-          "slug": "fraud",
-          "all": ["Fraud Detection"],     # every matched use case
-          "unmatched": ["foo_pattern"],   # registry entries with no match
-        }
-    """
     pattern_to_use_case = _scan_use_case_patterns(use_cases_dir)
     counts: dict[str, int] = {}
     unmatched: list[str] = []
@@ -156,11 +138,6 @@ def detect_use_cases(
         "all": sorted({_format_use_case(s) for s in counts.keys()}),
         "unmatched": unmatched,
     }
-
-
-# ---------------------------------------------------------------------------
-# Registry / policy snapshot helpers
-# ---------------------------------------------------------------------------
 
 
 def _load_registry_raw(registry_path: Path) -> dict[str, Any]:
@@ -197,10 +174,6 @@ def build_registry_snapshot(
     policy_path: Path,
     use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
 ) -> dict[str, Any]:
-    """
-    Build the /api/registry response payload directly from registry.json.
-    Sorted descending by confidence.
-    """
     raw = _load_registry_raw(registry_path)
     working_t, stable_t, min_runs = _load_policy_thresholds(policy_path)
 
@@ -218,11 +191,7 @@ def build_registry_snapshot(
         avg_score = float(entry.get("avg_score", 0.0))
         confidence = float(entry.get("confidence", 0.0))
         is_stable = bool(entry.get("is_stable", False))
-        promotion_candidate = (
-            avg_score >= stable_t
-            and runs >= min_runs
-            and not is_stable
-        )
+        promotion_candidate = avg_score >= stable_t and runs >= min_runs and not is_stable
         patterns.append(
             {
                 "pattern": name,
@@ -239,20 +208,14 @@ def build_registry_snapshot(
             }
         )
 
-    # Primary sort: tier (gold → silver → bronze → other).
-    # Secondary sort: confidence descending within the tier.
     tier_rank = {"gold": 0, "silver": 1, "bronze": 2}
-    patterns.sort(
-        key=lambda p: (tier_rank.get(p["status"], 99), -p["confidence"])
-    )
+    patterns.sort(key=lambda p: (tier_rank.get(p["status"], 99), -p["confidence"]))
 
     use_case_info = detect_use_cases(list(raw.keys()), use_cases_dir)
 
     return {
         "patterns": patterns,
-        "promotion_candidates": [
-            p["pattern"] for p in patterns if p["promotion_candidate"]
-        ],
+        "promotion_candidates": [p["pattern"] for p in patterns if p["promotion_candidate"]],
         "thresholds": {
             "working": working_t,
             "stable": stable_t,
@@ -265,13 +228,6 @@ def build_registry_snapshot(
 
 
 def build_results(registry_path: Path, n: int) -> dict[str, Any]:
-    """
-    Synthesize an experiment row list from per-pattern score arrays.
-
-    Each element of a pattern's `scores` list becomes one row. Rows are
-    ordered by metric score descending so the strongest experiment
-    outcomes stay at the top of the log.
-    """
     raw = _load_registry_raw(registry_path)
     rows: list[dict[str, Any]] = []
 
@@ -326,11 +282,6 @@ def load_policy_dict(policy_path: Path) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-# ---------------------------------------------------------------------------
-# SSE helpers
-# ---------------------------------------------------------------------------
-
-
 def _sse(event: str, data: Any) -> bytes:
     payload = json.dumps(data, default=str)
     return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
@@ -341,9 +292,10 @@ def _scores_by_pattern(snapshot: dict[str, Any]) -> dict[str, list[float]]:
 
 
 def _diff_result_events(
-    prev: dict[str, list[float]], curr: dict[str, list[float]], curr_snapshot: dict[str, Any]
+    prev: dict[str, list[float]],
+    curr: dict[str, list[float]],
+    curr_snapshot: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Yield one event dict per newly-appended score since the last snapshot."""
     events: list[dict[str, Any]] = []
     status_by_pattern = {p["pattern"]: p for p in curr_snapshot["patterns"]}
     for name, scores in curr.items():
@@ -366,7 +318,6 @@ def _diff_result_events(
 
 
 def _initial_result_events(snapshot: dict[str, Any], limit: int) -> list[dict[str, Any]]:
-    """Top N synthesized result events across the history by score descending."""
     rows: list[dict[str, Any]] = []
     for p in snapshot["patterns"]:
         scores = p.get("scores") or []
@@ -396,23 +347,19 @@ async def _stream_events(
     use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
     poll_interval_s: float = 0.5,
 ) -> AsyncIterator[bytes]:
-    # --- On-connect: registry snapshot + last 10 result events ---
     snapshot = build_registry_snapshot(registry_path, policy_path, use_cases_dir)
     yield _sse("registry", snapshot)
 
     for ev in _initial_result_events(snapshot, limit=10):
         yield _sse("result", ev)
 
-    last_mtime = (
-        registry_path.stat().st_mtime if registry_path.exists() else 0.0
-    )
+    last_mtime = registry_path.stat().st_mtime if registry_path.exists() else 0.0
     last_scores = _scores_by_pattern(snapshot)
     last_heartbeat = time.monotonic()
 
     while True:
         await asyncio.sleep(poll_interval_s)
 
-        # Heartbeat even if nothing changed.
         if (time.monotonic() - last_heartbeat) >= heartbeat_interval_s:
             yield _sse("heartbeat", {"ts": int(time.time())})
             last_heartbeat = time.monotonic()
@@ -437,11 +384,6 @@ async def _stream_events(
 
         yield _sse("registry", new_snapshot)
         last_scores = new_scores
-
-
-# ---------------------------------------------------------------------------
-# App factory
-# ---------------------------------------------------------------------------
 
 
 def create_app(

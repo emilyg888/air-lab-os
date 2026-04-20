@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>air-lab-os architecture</title>
+<style>
+  :root {
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f5f4f0;
+    --color-background-tertiary: #eeede8;
+    --color-background-info: #e6f1fb;
+    --color-background-success: #eaf3de;
+    --color-background-warning: #faeeda;
+    --color-background-danger: #fcebeb;
+    --color-text-primary: #1a1a18;
+    --color-text-secondary: #5f5e5a;
+    --color-text-tertiary: #888780;
+    --color-text-info: #0c447c;
+    --color-text-success: #27500a;
+    --color-text-warning: #633806;
+    --color-text-danger: #791f1f;
+    --color-border-tertiary: rgba(0,0,0,0.12);
+    --color-border-secondary: rgba(0,0,0,0.22);
+    --color-border-primary: rgba(0,0,0,0.32);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "SF Mono", "Fira Code", monospace;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background-primary: #1e1e1c;
+      --color-background-secondary: #2a2a28;
+      --color-background-tertiary: #242422;
+      --color-background-info: #042c53;
+      --color-background-success: #173404;
+      --color-background-warning: #412402;
+      --color-background-danger: #501313;
+      --color-text-primary: #e8e6de;
+      --color-text-secondary: #9c9a92;
+      --color-text-tertiary: #6e6d67;
+      --color-text-info: #b5d4f4;
+      --color-text-success: #c0dd97;
+      --color-text-warning: #fac775;
+      --color-text-danger: #f7c1c1;
+      --color-border-tertiary: rgba(255,255,255,0.10);
+      --color-border-secondary: rgba(255,255,255,0.18);
+      --color-border-primary: rgba(255,255,255,0.28);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-background-tertiary);
+    color: var(--color-text-primary);
+    padding: 24px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 20px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  .row { display: grid; gap: 10px; margin-bottom: 10px; }
+  .row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .row-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+  .card {
+    background: var(--color-background-primary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: 14px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 10px;
+  }
+  .engine-box {
+    background: var(--color-background-secondary);
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-lg);
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  .engine-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+  .engine-sub { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 12px; }
+  .plugin-slot {
+    border: 0.5px dashed var(--color-border-secondary);
+    border-radius: var(--border-radius-md);
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .plugin-slot:last-child { margin-bottom: 0; }
+  .slot-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .slot-items { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font-size: 11px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+  .chip-fraud { background: #FAECE7; color: #712B13; border: 0.5px solid #F0997B; }
+  .chip-mkt   { background: #E1F5EE; color: #085041; border: 0.5px solid #5DCAA5; }
+  .chip-risk  { background: #EEEDFE; color: #3C3489; border: 0.5px solid #AFA9EC; }
+  .chip-future{ background: var(--color-background-secondary); color: var(--color-text-tertiary); border: 0.5px dashed var(--color-border-tertiary); }
+  .chip-bb    { background: #FAEEDA; color: #633806; border: 0.5px solid #EF9F27; }
+  .chip-ext   { background: #E6F1FB; color: #0C447C; border: 0.5px solid #85B7EB; }
+  .dir-tree { font-size: 11px; font-family: var(--font-mono); color: var(--color-text-secondary); line-height: 1.9; }
+  .dir-hl   { color: var(--color-text-primary); font-weight: 500; }
+  .dir-note { color: var(--color-text-tertiary); font-size: 10px; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 20px; margin-left: 4px; }
+  .b-done   { background: #E1F5EE; color: #085041; }
+  .b-phase1 { background: #EEEDFE; color: #3C3489; }
+  .b-phase2 { background: #FAEEDA; color: #633806; }
+  .b-future { background: var(--color-background-secondary); color: var(--color-text-tertiary); }
+  .loop-step { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .loop-step:last-child { border-bottom: none; }
+  .step-num  { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); min-width: 20px; margin-top: 1px; }
+  .step-body { flex: 1; }
+  .step-name { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+  .step-desc { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; line-height: 1.5; }
+  .step-who  { font-size: 10px; color: var(--color-text-tertiary); font-family: var(--font-mono); margin-top: 3px; }
+  .bottom-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 4px; }
+  .bottom-item-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 6px; }
+  .bottom-item-body  { font-size: 11px; color: var(--color-text-secondary); line-height: 1.6; }
+  code { font-family: var(--font-mono); font-size: 10px; }
+  @media (max-width: 700px) {
+    .row-2 { grid-template-columns: 1fr; }
+    .row-3 { grid-template-columns: 1fr; }
+    .bottom-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>air-lab-os architecture</h1>
+
+  <div class="row row-2" style="align-items:start">
+
+    <div>
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-label">Repo layout — sibling repos</div>
+        <div class="dir-tree">~/LocalDocuments/
+  <span class="dir-hl">air-lab-os/</span>          <span class="badge b-phase1">building now</span>
+    main.py
+    runtime/
+      config.py        <span class="dir-note">← scoring policy</span>
+      llm.py           <span class="dir-note">← QWEN planner</span>
+    lab/
+      playground.py    <span class="dir-note">← run_experiment()</span>
+      arena.py         <span class="dir-note">← compare_patterns()</span>
+      experiments/     <span class="dir-note">← run logs</span>
+    evaluation/
+      evaluator.py     <span class="dir-note">← evaluate()</span>
+    memory/
+      registry.py      <span class="dir-note">← PatternRegistry</span>
+      runs.json        <span class="dir-note">← experiment log</span>
+    patterns/
+      scratch/         <span class="dir-note">← bronze</span>
+      working/         <span class="dir-note">← silver</span>
+      stable/          <span class="dir-note">← gold</span>
+
+  <span class="dir-hl">bb_datasets/</span>         <span class="badge b-done">exists</span>
+    fraud/
+      detector.py
+      features.py
+      load.py
+    datasets/
+      generator_v3.py
+    exports/duckdb/
+      sandbox.db
+
+  <span class="dir-hl">external-datasets/</span>   <span class="badge b-phase2">phase 2</span>
+    fraud/
+      fraud_v1/
+      fraud_gold/
+    registry/
+      datasets.json</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="engine-box">
+        <div class="engine-title">air-lab-os — domain-agnostic engine</div>
+        <div class="engine-sub">The engine never knows it's doing fraud detection. It knows: run a pattern, get a score, compare, improve.</div>
+
+        <div class="plugin-slot">
+          <div class="slot-label">Plug 1 — use case (patterns + detectors)</div>
+          <div class="slot-items">
+            <span class="chip chip-fraud">fraud detection</span>
+            <span class="chip chip-mkt">marketing attribution</span>
+            <span class="chip chip-risk">credit risk</span>
+            <span class="chip chip-future">+ any domain</span>
+          </div>
+        </div>
+
+        <div class="plugin-slot">
+          <div class="slot-label">Plug 2 — dataset</div>
+          <div class="slot-items">
+            <span class="chip chip-bb">bb_datasets (DuckDB)</span>
+            <span class="chip chip-ext">external-datasets (parquet)</span>
+            <span class="chip chip-future">+ any labelled data</span>
+          </div>
+        </div>
+
+        <div class="plugin-slot">
+          <div class="slot-label">Plug 3 — scoring policy (locked yaml)</div>
+          <div class="slot-items">
+            <span class="chip chip-fraud">fraud: f1 40% + expl 25%</span>
+            <span class="chip chip-mkt">marketing: conversion %</span>
+            <span class="chip chip-future">+ domain-specific weights</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">The compounding loop — same every time</div>
+        <div class="loop-step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-name">Plug in use case + dataset</div>
+            <div class="step-desc">Point engine at fraud detectors + bb_datasets sandbox.db. Load scoring policy for fraud domain.</div>
+            <div class="step-who">main.py --domain fraud --dataset bb_datasets</div>
+          </div>
+        </div>
+        <div class="loop-step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-name">QWEN plans next experiments</div>
+            <div class="step-desc">Reads registry + run history. Returns ranked list of patterns to try.</div>
+            <div class="step-who">runtime/llm.py → ExperimentPlan[]</div>
+          </div>
+        </div>
+        <div class="loop-step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-name">Playground runs experiment</div>
+            <div class="step-desc">Fixed eval window. Detector runs on data. DetectionResult produced.</div>
+            <div class="step-who">lab/playground.py → ExperimentResult</div>
+          </div>
+        </div>
+        <div class="loop-step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-name">Evaluator scores it</div>
+            <div class="step-desc">Reads locked scoring policy. Returns weighted composite score.</div>
+            <div class="step-who">evaluation/evaluator.py → float</div>
+          </div>
+        </div>
+        <div class="loop-step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <div class="step-name">Arena compares patterns</div>
+            <div class="step-desc">Keep if score improves. Discard if not. Update registry.</div>
+            <div class="step-who">lab/arena.py → memory/registry.py</div>
+          </div>
+        </div>
+        <div class="loop-step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <div class="step-name">Promote → stable, repeat</div>
+            <div class="step-desc">Gold patterns compound into next cycle as baselines. QWEN now starts from a stronger floor.</div>
+            <div class="step-who">patterns/working/ → patterns/stable/</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <div class="card-label">What changes in the dataset layer redesign — now that we understand air-lab-os</div>
+    <div class="bottom-grid">
+      <div>
+        <div class="bottom-item-title">Dataset as a plugin contract</div>
+        <div class="bottom-item-body">air-lab-os doesn't care if data comes from DuckDB, parquet, or CSV. It calls <code>DatasetHandle.eval_df()</code> and gets a DataFrame back. The plugin provides the handle. The engine never knows the source.</div>
+      </div>
+      <div>
+        <div class="bottom-item-title">Scoring policy is per use case</div>
+        <div class="bottom-item-body">Each use case brings its own locked scoring policy YAML. Fraud uses f1 + explainability + latency. Marketing might use conversion rate + cost. The evaluator reads whichever policy the use case provides.</div>
+      </div>
+      <div>
+        <div class="bottom-item-title">Pattern tiers mirror dataset tiers</div>
+        <div class="bottom-item-body"><code>patterns/scratch</code> runs on bronze data. <code>patterns/working</code> competes on silver. <code>patterns/stable</code> is certified on gold. Both axes compound together.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -161,7 +161,6 @@ UI_HTML = r"""<!doctype html>
     background: rgba(245, 179, 66, 0.08);
   }
 
-  /* Promotion banner */
   .banner {
     display: none;
     margin: 0 12px 10px 12px;
@@ -267,7 +266,6 @@ UI_HTML = r"""<!doctype html>
   .feature-card.flat .delta { color: var(--amber); }
   .feature-card.regressed .delta { color: var(--red); }
 
-  /* Registry cards */
   .pattern-card {
     border: 1px solid var(--border);
     background: var(--bg-card);
@@ -333,7 +331,6 @@ UI_HTML = r"""<!doctype html>
     background: var(--text-dim);
   }
 
-  /* Log rows */
   .log-row {
     display: grid;
     grid-template-columns: 70px 1fr 70px 20px;
@@ -509,7 +506,7 @@ UI_HTML = r"""<!doctype html>
     main {
       grid-template-columns: 1fr;
     }
-  .panel {
+    .panel {
       border-right: none;
       border-bottom: 1px solid var(--border);
     }
