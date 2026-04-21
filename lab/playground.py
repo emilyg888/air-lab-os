@@ -18,7 +18,14 @@ from pathlib import Path
 from typing import Any
 
 from core.evaluation import EvalMetrics, evaluate, load_policy
-from core.registry import PatternRegistry, RegistryEntry, append_run, update_registry
+from core.registry import (
+    PatternRegistry,
+    RegistryEntry,
+    append_run,
+    qualify,
+    update_registry,
+    use_case_from_dataset_id,
+)
 from datasets.base import DatasetHandle
 from patterns.base import PatternHandler, RunResult
 
@@ -30,7 +37,8 @@ MIN_SCORE_IMPROVEMENT = 0.001
 @dataclass
 class ExperimentResult:
     """Full output of one experiment run. Written to runs.json."""
-    pattern:     str
+    pattern:     str                  # short name
+    use_case:    str                  # inferred from dataset_id
     domain:      str
     version:     str
     dataset_id:  str
@@ -73,9 +81,11 @@ def run_experiment(
     commit    = _short_commit()
     timestamp = int(time.time())
     meta      = handle.meta
+    use_case  = use_case_from_dataset_id(meta.name)
+    qualified = qualify(use_case, pattern.name)
 
-    registry = PatternRegistry.load(registry_path=registry_path)
-    entry    = registry.get(pattern.name)
+    registry = PatternRegistry.load(runs_path=runs_path, registry_path=registry_path)
+    entry    = registry.get(qualified)
     tier     = entry.tier if entry else "scratch"
 
     try:
@@ -85,7 +95,7 @@ def run_experiment(
         metrics = evaluate(result, handle, policy)
         score   = metrics.score
 
-        current_best = registry.best_score(pattern.name)
+        current_best = registry.best_score(qualified)
         status = (
             "keep"
             if (
@@ -97,6 +107,7 @@ def run_experiment(
 
         exp = ExperimentResult(
             pattern      = pattern.name,
+            use_case     = use_case,
             domain       = meta.domain,
             version      = pattern.version,
             dataset_id   = meta.name,
@@ -114,6 +125,7 @@ def run_experiment(
     except Exception as exc:
         exp = ExperimentResult(
             pattern      = pattern.name,
+            use_case     = use_case,
             domain       = meta.domain,
             version      = getattr(pattern, "version", "?"),
             dataset_id   = meta.name,
@@ -131,7 +143,7 @@ def run_experiment(
     _write_run(exp, runs_path)
     if exp.status != "crash":
         update_registry(
-            pattern_name=exp.pattern,
+            pattern_name=qualify(exp.use_case, exp.pattern),
             score=exp.score,
             metadata={"dataset": exp.dataset_id, "description": exp.description},
             policy=load_policy(),
@@ -155,6 +167,7 @@ def _write_run(exp: ExperimentResult, path: Path) -> None:
     m = exp.metrics
     run = {
         "pattern":      exp.pattern,
+        "use_case":     exp.use_case,
         "domain":       exp.domain,
         "version":      exp.version,
         "dataset_id":   exp.dataset_id,

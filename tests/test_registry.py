@@ -50,7 +50,8 @@ def test_registry_loads_from_saved_registry_json(tmp_path):
         },
     )
 
-    entry = PatternRegistry.load(registry_path=registry_path).get("velocity_v1")
+    runs_path = tmp_path / "runs.json"
+    entry = PatternRegistry.load(runs_path=runs_path, registry_path=registry_path).get("velocity_v1")
 
     assert entry.runs == 5
     assert entry.scores == pytest.approx([0.62, 0.68, 0.71, 0.73, 0.74])
@@ -78,7 +79,8 @@ def test_registry_backfills_legacy_saved_entry(tmp_path):
         },
     )
 
-    entry = PatternRegistry.load(registry_path=registry_path).get("rule_spike")
+    runs_path = tmp_path / "runs.json"
+    entry = PatternRegistry.load(runs_path=runs_path, registry_path=registry_path).get("rule_spike")
 
     assert entry.scores == [0.6162]
     assert entry.avg_score == pytest.approx(0.6162)
@@ -93,7 +95,8 @@ def test_update_registry_persists_decision_state(tmp_path):
     update_registry("pattern_a", 0.82, {}, policy, path=registry_path)
     update_registry("pattern_a", 0.80, {}, policy, path=registry_path)
 
-    entry = PatternRegistry.load(registry_path=registry_path).get("pattern_a")
+    runs_path = tmp_path / "runs.json"
+    entry = PatternRegistry.load(runs_path=runs_path, registry_path=registry_path).get("pattern_a")
 
     assert entry.avg_score == pytest.approx(0.81)
     assert entry.is_stable is True
@@ -112,7 +115,8 @@ def test_apply_promotion_updates_status_and_clears_candidate(tmp_path):
 
     apply_promotion("pattern_a", "silver", path=registry_path)
 
-    entry = PatternRegistry.load(registry_path=registry_path).get("pattern_a")
+    runs_path = tmp_path / "runs.json"
+    entry = PatternRegistry.load(runs_path=runs_path, registry_path=registry_path).get("pattern_a")
 
     assert entry.status == "silver"
     assert entry.promotion_candidate is None
@@ -137,7 +141,8 @@ def test_best_score_uses_peak_saved_score(tmp_path):
         },
     )
 
-    registry = PatternRegistry.load(registry_path=registry_path)
+    runs_path = tmp_path / "runs.json"
+    registry = PatternRegistry.load(runs_path=runs_path, registry_path=registry_path)
     entry = registry.get("pattern_a")
 
     assert registry.best_score("pattern_a") == pytest.approx(0.72)
@@ -166,6 +171,8 @@ def test_save_writes_compact_registry_shape(tmp_path):
     data = json.loads(registry_path.read_text())
 
     assert set(data["velocity_v1"]) == {
+        "use_case",
+        "pattern_name",
         "runs",
         "scores",
         "avg_score",

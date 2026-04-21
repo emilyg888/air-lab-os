@@ -1,8 +1,19 @@
-"""Unified registry layer for derived pattern memory."""
+"""Unified registry layer for derived pattern memory.
+
+`memory/runs.json` is the append-only source of truth. `registry.json` is a
+derived snapshot, rebuilt from `runs.json` on every `PatternRegistry.load()`.
+The only piece of state that is NOT derived from runs is promotion `status`
+(bronze/silver/gold), which is preserved across rebuilds by reading the prior
+`registry.json` for status-only.
+
+Registry keys are qualified as `<use_case>.<pattern_name>` (e.g.
+`concept2.erg_load_threshold`). Use `qualify()` to compose.
+"""
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +22,8 @@ from typing import Any, Mapping, Optional
 RUNS_PATH = Path("memory/runs.json")
 REGISTRY_PATH = Path("registry.json")
 _MISSING = object()
+_UNKNOWN_USE_CASE = "_unknown"
+_DATASET_USE_CASE = re.compile(r"^use_cases\.([^.]+)\.")
 
 STATUS_TO_TIER = {
     "bronze": "scratch",
@@ -53,6 +66,25 @@ def _iso_timestamp(unix_seconds: int) -> str:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+
+
+def use_case_from_dataset_id(dataset_id: str) -> str:
+    if not dataset_id:
+        return _UNKNOWN_USE_CASE
+    m = _DATASET_USE_CASE.match(dataset_id)
+    return m.group(1) if m else _UNKNOWN_USE_CASE
+
+
+def qualify(use_case: str, pattern: str) -> str:
+    uc = use_case or _UNKNOWN_USE_CASE
+    return f"{uc}.{pattern}"
+
+
+def split_qualified(key: str) -> tuple[str, str]:
+    if "." not in key:
+        return (_UNKNOWN_USE_CASE, key)
+    uc, _, name = key.partition(".")
+    return (uc, name)
 
 
 def compute_confidence(avg_score: float, runs: int, variance: float, min_runs: int) -> float:
@@ -107,7 +139,7 @@ def determine_promotion_candidate(
 
 @dataclass
 class RegistryEntry:
-    pattern: str
+    pattern: str  # qualified: "<use_case>.<name>"
     runs: int = 0
     scores: list[float] = field(default_factory=list)
     avg_score: float = 0.0
@@ -119,6 +151,8 @@ class RegistryEntry:
     last_updated: str = ""
 
     # Runtime-only compatibility fields.
+    use_case: str = ""
+    pattern_name: str = ""  # short, unqualified name
     domain: str = ""
     version: str = "0.1"
     pattern_path: str = ""
@@ -142,6 +176,8 @@ class RegistryEntry:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "use_case": self.use_case,
+            "pattern_name": self.pattern_name,
             "runs": self.runs,
             "scores": [round(score, 4) for score in self.scores],
             "avg_score": round(self.avg_score, 4),
@@ -155,7 +191,7 @@ class RegistryEntry:
 
 
 class PatternRegistry:
-    """Registry rebuilt from run history and saved as compact derived state."""
+    """Registry rebuilt from runs.json on every load; status preserved."""
 
     WORKING_THRESHOLD: float | None = None
     STABLE_THRESHOLD: float | None = None
@@ -172,15 +208,77 @@ class PatternRegistry:
         runs_path: Path = RUNS_PATH,
         registry_path: Path = REGISTRY_PATH,
     ) -> "PatternRegistry":
-        del runs_path
         cls._load_policy_thresholds()
 
-        entries: dict[str, RegistryEntry] = {}
+        prior_status: dict[str, str] = {}
         raw_registry = load_json(registry_path, {})
-        for pattern, data in raw_registry.items():
-            if not isinstance(data, dict):
+        if isinstance(raw_registry, dict):
+            for key, data in raw_registry.items():
+                if isinstance(data, dict) and "status" in data:
+                    prior_status[key] = _normalize_status(data.get("status"))
+
+        entries: dict[str, RegistryEntry] = {}
+        runs = load_json(runs_path, [])
+        if not isinstance(runs, list) or not runs:
+            # Fallback: no runs history → treat registry.json as authoritative.
+            if isinstance(raw_registry, dict):
+                for key, data in raw_registry.items():
+                    if isinstance(data, dict):
+                        entries[key] = _entry_from_saved(key, data)
+            return cls(entries)
+
+        for run in runs:
+            if not isinstance(run, dict):
                 continue
-            entries[pattern] = _entry_from_saved(pattern, data)
+            short = run.get("pattern", "")
+            if not short:
+                continue
+            use_case = run.get("use_case") or use_case_from_dataset_id(run.get("dataset_id", ""))
+            key = qualify(use_case, short)
+
+            if key not in entries:
+                entries[key] = RegistryEntry(
+                    pattern=key,
+                    use_case=use_case,
+                    pattern_name=short,
+                    domain=run.get("domain", ""),
+                    version=run.get("version", "0.1"),
+                    pattern_path=run.get("pattern_path", ""),
+                )
+
+            entry = entries[key]
+            score = float(run.get("score", 0.0))
+            entry.runs += 1
+            entry.scores.append(round(score, 4))
+            entry.last_score = round(score, 4)
+            entry.last_run_status = run.get("status", entry.last_run_status)
+            entry.last_commit = run.get("commit", entry.last_commit)
+            entry.last_dataset = run.get("dataset_id", entry.last_dataset)
+            entry.last_updated = _iso_timestamp(int(run.get("timestamp", 0))) or entry.last_updated
+
+            if run.get("domain"):
+                entry.domain = run["domain"]
+            if run.get("version"):
+                entry.version = run["version"]
+            if run.get("pattern_path"):
+                entry.pattern_path = run["pattern_path"]
+            if score >= entry.max_score:
+                entry.best_metrics = run.get("metrics", {}) or entry.best_metrics
+                entry.description = run.get("description", entry.description)
+
+        for key, entry in entries.items():
+            _refresh_entry(entry, cls)
+            entry.status = prior_status.get(key, "bronze")
+            entry.promotion_candidate = determine_promotion_candidate(
+                current_status=entry.status,
+                avg_score=entry.avg_score,
+                confidence=entry.confidence,
+                runs=entry.runs,
+                working_threshold=cls.WORKING_THRESHOLD,
+                stable_threshold=cls.STABLE_THRESHOLD,
+                min_runs=cls.MIN_RUNS,
+                promotion_confidence_threshold=cls.PROMOTION_CONFIDENCE_THRESHOLD,
+            )
 
         return cls(entries)
 
@@ -207,6 +305,9 @@ class PatternRegistry:
     def by_tier(self, tier: str) -> list[RegistryEntry]:
         target_status = TIER_TO_STATUS.get(tier, tier)
         return [entry for entry in self._entries.values() if entry.status == target_status]
+
+    def by_use_case(self, use_case: str) -> list[RegistryEntry]:
+        return [entry for entry in self._entries.values() if entry.use_case == use_case]
 
     def best_score(self, pattern: str) -> Optional[float]:
         entry = self._entries.get(pattern)
@@ -252,8 +353,13 @@ def _entry_from_saved(pattern: str, data: dict[str, Any]) -> RegistryEntry:
         seed_score = float(data.get("last_score", data.get("avg_score", data.get("confidence", 0.0))))
         scores = [round(seed_score, 4)] * runs if runs > 0 else []
 
+    use_case = str(data.get("use_case", "")) or split_qualified(pattern)[0]
+    pattern_name = str(data.get("pattern_name", "")) or split_qualified(pattern)[1]
+
     entry = RegistryEntry(
         pattern=pattern,
+        use_case=use_case,
+        pattern_name=pattern_name,
         runs=runs,
         scores=[round(float(score), 4) for score in scores],
         avg_score=float(data.get("avg_score", _mean(scores))),
@@ -335,6 +441,7 @@ def update_registry(
     policy: Mapping[str, Any] | Any,
     path: Path = REGISTRY_PATH,
 ) -> dict[str, Any]:
+    """Mutate one entry. `pattern_name` must be a qualified key `<use_case>.<name>`."""
     registry = load_registry(path)
     entry = registry.get(pattern_name, {"runs": 0, "scores": []})
 
@@ -372,6 +479,9 @@ def update_registry(
         threshold=float(stability_variance_threshold),
     )
 
+    use_case, short = split_qualified(pattern_name)
+    entry.setdefault("use_case", use_case)
+    entry.setdefault("pattern_name", short)
     entry["avg_score"] = round(avg_score, 4)
     entry["confidence"] = compute_confidence(avg_score, entry["runs"], variance, min_runs)
     entry["status"] = _normalize_status(entry.get("status", "bronze"))

@@ -1,12 +1,14 @@
 """
 FastAPI dashboard server.
 
-Read-only surface over the pattern registry. Adapted for air-lab-os:
-- The source of truth is `registry.json` (per-pattern aggregated scores list),
-  incrementally written by `core.registry.update_registry()`.
-- There is no append-only `results.tsv` in this repo — the SSE tail watches
-  `registry.json` mtime and synthesizes per-run `result` events from the
-  growth of each pattern's `scores` list between snapshots.
+Read-only surface over the pattern registry. Registry keys are qualified as
+`<use_case>.<pattern_name>` (e.g. `concept2.erg_load_threshold`). The server
+filters by splitting the key on the first `.`.
+
+`registry.json` is derived from `memory/runs.json` and rebuilt on every
+`PatternRegistry.load()`. The SSE tail watches `registry.json` mtime and
+synthesizes per-run `result` events from the growth of each pattern's `scores`
+list between snapshots.
 
 NOTE: Windows file locking — on POSIX we can read registry.json while
 `core.registry` rewrites it; on Windows the read may briefly fail while
@@ -18,7 +20,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -31,8 +35,18 @@ from .ui import UI_HTML
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_REGISTRY = REPO_ROOT / "registry.json"
+DEFAULT_RUNS = REPO_ROOT / "memory" / "runs.json"
 DEFAULT_POLICY = REPO_ROOT / "scoring_policy.yaml"
 DEFAULT_USE_CASES_DIR = REPO_ROOT / "use_cases"
+
+_DATASET_USE_CASE = re.compile(r"^use_cases\.([^.]+)\.")
+
+
+def _use_case_from_dataset_id(dataset_id: str) -> str:
+    if not dataset_id:
+        return "_unknown"
+    m = _DATASET_USE_CASE.match(dataset_id)
+    return m.group(1) if m else "_unknown"
 
 STATUS_TO_TIER_LABEL = {
     "bronze": "bronze",
@@ -44,68 +58,6 @@ USE_CASE_DISPLAY_NAMES = {
     "fraud": "Fraud Detection",
 }
 
-FEATURE_EXPERIMENT_SNAPSHOT = {
-    "dataset": "use_cases.fraud.handle",
-    "baseline_f1": 0.8671,
-    "generated_at": "2026-04-10T10:00:00+11:00",
-    "results": [
-        {
-            "feature_name": "amount_to_balance_ratio",
-            "experiment_f1": 0.8641,
-            "delta_f1": -0.0030,
-            "status": "regressed",
-        },
-        {
-            "feature_name": "same_ts_amount_pressure",
-            "experiment_f1": 0.8656,
-            "delta_f1": -0.0015,
-            "status": "regressed",
-        },
-        {
-            "feature_name": "high_risk_debit_flag",
-            "experiment_f1": 0.8671,
-            "delta_f1": 0.0000,
-            "status": "flat",
-        },
-        {
-            "feature_name": "burst_density_10m",
-            "experiment_f1": 0.8671,
-            "delta_f1": 0.0000,
-            "status": "flat",
-        },
-        {
-            "feature_name": "behaviour_drift",
-            "experiment_f1": 0.8621,
-            "delta_f1": -0.0050,
-            "status": "regressed",
-        },
-        {
-            "feature_name": "behaviour_drift_v2",
-            "experiment_f1": 0.8621,
-            "delta_f1": -0.0050,
-            "status": "regressed",
-        },
-        {
-            "feature_name": "merchant_diversity",
-            "experiment_f1": 0.8656,
-            "delta_f1": -0.0015,
-            "status": "regressed",
-        },
-    ],
-}
-
-
-def _scan_use_case_patterns(use_cases_dir: Path) -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    if not use_cases_dir.exists():
-        return mapping
-    for pattern_file in use_cases_dir.glob("*/patterns/*.py"):
-        if pattern_file.name.startswith("_"):
-            continue
-        use_case = pattern_file.parent.parent.name
-        mapping[pattern_file.stem] = use_case
-    return mapping
-
 
 def _format_use_case(slug: str) -> str:
     if not slug:
@@ -113,25 +65,56 @@ def _format_use_case(slug: str) -> str:
     return USE_CASE_DISPLAY_NAMES.get(slug, slug.replace("_", " ").title())
 
 
-def detect_use_cases(
-    registry_keys: list[str],
-    use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
-) -> dict[str, Any]:
-    pattern_to_use_case = _scan_use_case_patterns(use_cases_dir)
+def _split_qualified(key: str) -> tuple[str, str]:
+    if "." not in key:
+        return ("_unknown", key)
+    uc, _, name = key.partition(".")
+    return (uc, name)
+
+
+def list_use_cases(
+    use_cases_dir: Path,
+    registry_path: Path | None = None,
+) -> list[dict[str, str]]:
+    """List use cases from (a) subdirectories of use_cases_dir and
+    (b) qualified keys actually present in registry.json."""
+    slugs: set[str] = set()
+    if use_cases_dir.exists():
+        for child in sorted(use_cases_dir.iterdir()):
+            if not child.is_dir():
+                continue
+            if child.name.startswith("_") or child.name.startswith("."):
+                continue
+            slugs.add(child.name)
+    if registry_path is not None:
+        raw = _load_registry_raw(registry_path)
+        for key in raw.keys():
+            uc, _ = _split_qualified(key)
+            if uc and not uc.startswith("_"):
+                slugs.add(uc)
+    return [{"slug": s, "label": _format_use_case(s)} for s in sorted(slugs)]
+
+
+def _normalize_use_case(value: str | None) -> str | None:
+    if value is None:
+        return None
+    v = value.strip().lower()
+    if not v or v == "all":
+        return None
+    return v
+
+
+def detect_use_cases(registry_keys: list[str]) -> dict[str, Any]:
     counts: dict[str, int] = {}
     unmatched: list[str] = []
     for name in registry_keys:
-        slug = pattern_to_use_case.get(name)
-        if slug is None:
+        slug, _ = _split_qualified(name)
+        if not slug or slug.startswith("_"):
             unmatched.append(name)
             continue
         counts[slug] = counts.get(slug, 0) + 1
 
-    if counts:
-        dominant_slug = max(counts.items(), key=lambda kv: kv[1])[0]
-    else:
-        dominant_slug = ""
-
+    dominant_slug = max(counts.items(), key=lambda kv: kv[1])[0] if counts else ""
     return {
         "current": _format_use_case(dominant_slug),
         "slug": dominant_slug,
@@ -173,14 +156,20 @@ def build_registry_snapshot(
     registry_path: Path,
     policy_path: Path,
     use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
+    use_case: str | None = None,
 ) -> dict[str, Any]:
     raw = _load_registry_raw(registry_path)
     working_t, stable_t, min_runs = _load_policy_thresholds(policy_path)
+
+    filter_slug = _normalize_use_case(use_case)
 
     patterns: list[dict[str, Any]] = []
     total_runs = 0
     for name, entry in raw.items():
         if not isinstance(entry, dict):
+            continue
+        entry_uc = str(entry.get("use_case", "")) or _split_qualified(name)[0]
+        if filter_slug is not None and entry_uc != filter_slug:
             continue
         runs = int(entry.get("runs", 0))
         total_runs += runs
@@ -192,9 +181,12 @@ def build_registry_snapshot(
         confidence = float(entry.get("confidence", 0.0))
         is_stable = bool(entry.get("is_stable", False))
         promotion_candidate = avg_score >= stable_t and runs >= min_runs and not is_stable
+        pattern_name = str(entry.get("pattern_name", "")) or _split_qualified(name)[1]
         patterns.append(
             {
                 "pattern": name,
+                "pattern_name": pattern_name,
+                "use_case": entry_uc,
                 "status": status,
                 "tier": STATUS_TO_TIER_LABEL.get(status, status),
                 "confidence": round(confidence, 4),
@@ -211,7 +203,15 @@ def build_registry_snapshot(
     tier_rank = {"gold": 0, "silver": 1, "bronze": 2}
     patterns.sort(key=lambda p: (tier_rank.get(p["status"], 99), -p["confidence"]))
 
-    use_case_info = detect_use_cases(list(raw.keys()), use_cases_dir)
+    use_case_info = detect_use_cases(list(raw.keys()))
+    if filter_slug is not None:
+        use_case_info = {
+            **use_case_info,
+            "selected": filter_slug,
+            "selected_label": _format_use_case(filter_slug),
+        }
+    else:
+        use_case_info = {**use_case_info, "selected": "", "selected_label": ""}
 
     return {
         "patterns": patterns,
@@ -227,49 +227,68 @@ def build_registry_snapshot(
     }
 
 
-def build_results(registry_path: Path, n: int) -> dict[str, Any]:
-    raw = _load_registry_raw(registry_path)
-    rows: list[dict[str, Any]] = []
+def _load_runs_list(runs_path: Path) -> list[dict[str, Any]]:
+    if not runs_path.exists():
+        return []
+    try:
+        data = json.loads(runs_path.read_text())
+    except (json.JSONDecodeError, ValueError, OSError):
+        return []
+    return data if isinstance(data, list) else []
 
-    for name, entry in raw.items():
-        if not isinstance(entry, dict):
-            continue
-        scores = entry.get("scores") or []
-        if not isinstance(scores, list):
-            continue
-        last_updated = _normalize_last_updated(entry.get("last_updated"))
-        status = str(entry.get("status", "bronze"))
-        for idx, score in enumerate(scores):
-            rows.append(
-                {
-                    "pattern": name,
-                    "run_index": idx,
-                    "score": float(score),
-                    "status": status,
-                    "last_updated": last_updated,
-                    "is_last": idx == len(scores) - 1,
-                }
-            )
 
-    rows.sort(
-        key=lambda r: (r["score"], r["last_updated"], r["is_last"], r["run_index"]),
-        reverse=True,
+def _ts_to_iso(unix_seconds: int) -> str:
+    if unix_seconds <= 0:
+        return ""
+    return (
+        datetime.fromtimestamp(unix_seconds, tz=timezone.utc)
+        .replace(tzinfo=None)
+        .isoformat(timespec="seconds")
     )
 
+
+def _run_to_row(run: dict[str, Any], idx: int) -> dict[str, Any]:
+    short = str(run.get("pattern", ""))
+    uc = str(run.get("use_case") or _use_case_from_dataset_id(run.get("dataset_id", "")))
+    qualified = f"{uc}.{short}" if short else uc
+    ts = int(run.get("timestamp", 0) or 0)
+    return {
+        "pattern": qualified,
+        "pattern_name": short,
+        "use_case": uc,
+        "score": float(run.get("score", 0.0) or 0.0),
+        "status": str(run.get("status", "")),
+        "tier": str(run.get("tier", "")),
+        "dataset_id": str(run.get("dataset_id", "")),
+        "commit": str(run.get("commit", "")),
+        "description": str(run.get("description", "")),
+        "ts": ts,
+        "last_updated": _ts_to_iso(ts),
+        "run_index": idx,
+    }
+
+
+def build_results(
+    runs_path: Path,
+    n: int,
+    use_case: str | None = None,
+) -> dict[str, Any]:
+    runs = _load_runs_list(runs_path)
+    filter_slug = _normalize_use_case(use_case)
+
+    rows: list[dict[str, Any]] = []
+    for idx, run in enumerate(runs):
+        if not isinstance(run, dict):
+            continue
+        row = _run_to_row(run, idx)
+        if filter_slug is not None and row["use_case"] != filter_slug:
+            continue
+        rows.append(row)
+
+    rows.sort(key=lambda r: (r["ts"], r["run_index"]), reverse=True)
     total = len(rows)
     limited = rows[:n]
     return {"rows": limited, "total": total, "returned": len(limited)}
-
-
-def build_feature_snapshot() -> dict[str, Any]:
-    payload = json.loads(json.dumps(FEATURE_EXPERIMENT_SNAPSHOT))
-    results = payload["results"]
-    payload["counts"] = {
-        "improved": sum(1 for row in results if row["delta_f1"] > 0),
-        "flat": sum(1 for row in results if row["delta_f1"] == 0),
-        "regressed": sum(1 for row in results if row["delta_f1"] < 0),
-    }
-    return payload
 
 
 def load_policy_dict(policy_path: Path) -> dict[str, Any]:
@@ -287,56 +306,22 @@ def _sse(event: str, data: Any) -> bytes:
     return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
 
 
-def _scores_by_pattern(snapshot: dict[str, Any]) -> dict[str, list[float]]:
-    return {p["pattern"]: list(p.get("scores", [])) for p in snapshot["patterns"]}
-
-
-def _diff_result_events(
-    prev: dict[str, list[float]],
-    curr: dict[str, list[float]],
-    curr_snapshot: dict[str, Any],
+def _initial_result_events(
+    runs_path: Path,
+    limit: int,
+    use_case: str | None = None,
 ) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    status_by_pattern = {p["pattern"]: p for p in curr_snapshot["patterns"]}
-    for name, scores in curr.items():
-        prev_scores = prev.get(name, [])
-        if len(scores) <= len(prev_scores):
-            continue
-        info = status_by_pattern.get(name, {})
-        for idx in range(len(prev_scores), len(scores)):
-            events.append(
-                {
-                    "pattern": name,
-                    "run_index": idx,
-                    "score": float(scores[idx]),
-                    "status": info.get("status", "bronze"),
-                    "last_updated": info.get("last_updated", ""),
-                    "ts": int(time.time()),
-                }
-            )
-    return events
-
-
-def _initial_result_events(snapshot: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    runs = _load_runs_list(runs_path)
+    filter_slug = _normalize_use_case(use_case)
     rows: list[dict[str, Any]] = []
-    for p in snapshot["patterns"]:
-        scores = p.get("scores") or []
-        for idx, score in enumerate(scores):
-            rows.append(
-                {
-                    "pattern": p["pattern"],
-                    "run_index": idx,
-                    "score": float(score),
-                    "status": p.get("status", "bronze"),
-                    "last_updated": p.get("last_updated", ""),
-                    "ts": 0,
-                    "is_last": idx == len(scores) - 1,
-                }
-            )
-    rows.sort(
-        key=lambda r: (r["score"], r["last_updated"], r["is_last"], r["run_index"]),
-        reverse=True,
-    )
+    for idx, run in enumerate(runs):
+        if not isinstance(run, dict):
+            continue
+        row = _run_to_row(run, idx)
+        if filter_slug is not None and row["use_case"] != filter_slug:
+            continue
+        rows.append(row)
+    rows.sort(key=lambda r: (r["ts"], r["run_index"]), reverse=True)
     return rows[:limit]
 
 
@@ -346,15 +331,20 @@ async def _stream_events(
     heartbeat_interval_s: float,
     use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
     poll_interval_s: float = 0.5,
+    use_case: str | None = None,
+    runs_path: Path = DEFAULT_RUNS,
 ) -> AsyncIterator[bytes]:
-    snapshot = build_registry_snapshot(registry_path, policy_path, use_cases_dir)
+    snapshot = build_registry_snapshot(registry_path, policy_path, use_cases_dir, use_case)
     yield _sse("registry", snapshot)
 
-    for ev in _initial_result_events(snapshot, limit=10):
+    for ev in _initial_result_events(runs_path, limit=20, use_case=use_case):
         yield _sse("result", ev)
 
-    last_mtime = registry_path.stat().st_mtime if registry_path.exists() else 0.0
-    last_scores = _scores_by_pattern(snapshot)
+    filter_slug = _normalize_use_case(use_case)
+
+    reg_mtime = registry_path.stat().st_mtime if registry_path.exists() else 0.0
+    runs_mtime = runs_path.stat().st_mtime if runs_path.exists() else 0.0
+    last_runs_len = len(_load_runs_list(runs_path))
     last_heartbeat = time.monotonic()
 
     while True:
@@ -364,26 +354,36 @@ async def _stream_events(
             yield _sse("heartbeat", {"ts": int(time.time())})
             last_heartbeat = time.monotonic()
 
-        if not registry_path.exists():
-            continue
+        if runs_path.exists():
+            try:
+                m = runs_path.stat().st_mtime
+            except OSError:
+                m = runs_mtime
+            if m != runs_mtime:
+                runs_mtime = m
+                runs = _load_runs_list(runs_path)
+                if len(runs) > last_runs_len:
+                    for idx in range(last_runs_len, len(runs)):
+                        run = runs[idx]
+                        if not isinstance(run, dict):
+                            continue
+                        row = _run_to_row(run, idx)
+                        if filter_slug is not None and row["use_case"] != filter_slug:
+                            continue
+                        yield _sse("result", row)
+                last_runs_len = len(runs)
 
-        try:
-            mtime = registry_path.stat().st_mtime
-        except OSError:
-            continue
-
-        if mtime == last_mtime:
-            continue
-        last_mtime = mtime
-
-        new_snapshot = build_registry_snapshot(registry_path, policy_path, use_cases_dir)
-        new_scores = _scores_by_pattern(new_snapshot)
-
-        for ev in _diff_result_events(last_scores, new_scores, new_snapshot):
-            yield _sse("result", ev)
-
-        yield _sse("registry", new_snapshot)
-        last_scores = new_scores
+        if registry_path.exists():
+            try:
+                m = registry_path.stat().st_mtime
+            except OSError:
+                m = reg_mtime
+            if m != reg_mtime:
+                reg_mtime = m
+                new_snapshot = build_registry_snapshot(
+                    registry_path, policy_path, use_cases_dir, use_case,
+                )
+                yield _sse("registry", new_snapshot)
 
 
 def create_app(
@@ -391,9 +391,11 @@ def create_app(
     policy_path: Path = DEFAULT_POLICY,
     heartbeat_interval_s: float = 15.0,
     use_cases_dir: Path = DEFAULT_USE_CASES_DIR,
+    runs_path: Path = DEFAULT_RUNS,
 ) -> FastAPI:
     app = FastAPI(title="air-lab-os dashboard", docs_url=None, redoc_url=None)
     app.state.registry_path = Path(registry_path)
+    app.state.runs_path = Path(runs_path)
     app.state.policy_path = Path(policy_path)
     app.state.use_cases_dir = Path(use_cases_dir)
     app.state.heartbeat_interval_s = float(heartbeat_interval_s)
@@ -403,11 +405,12 @@ def create_app(
         return HTMLResponse(UI_HTML)
 
     @app.get("/api/registry")
-    def api_registry() -> JSONResponse:
+    def api_registry(use_case: str | None = Query(None)) -> JSONResponse:
         snap = build_registry_snapshot(
             app.state.registry_path,
             app.state.policy_path,
             app.state.use_cases_dir,
+            use_case=use_case,
         )
         return JSONResponse(snap)
 
@@ -416,20 +419,29 @@ def create_app(
         return JSONResponse(load_policy_dict(app.state.policy_path))
 
     @app.get("/api/results")
-    def api_results(n: int = Query(50, ge=1, le=500)) -> JSONResponse:
-        return JSONResponse(build_results(app.state.registry_path, n))
+    def api_results(
+        n: int = Query(50, ge=1, le=500),
+        use_case: str | None = Query(None),
+    ) -> JSONResponse:
+        return JSONResponse(
+            build_results(app.state.runs_path, n, use_case=use_case)
+        )
 
-    @app.get("/api/features")
-    def api_features() -> JSONResponse:
-        return JSONResponse(build_feature_snapshot())
+    @app.get("/api/use_cases")
+    def api_use_cases() -> JSONResponse:
+        return JSONResponse({
+            "use_cases": list_use_cases(app.state.use_cases_dir, app.state.registry_path),
+        })
 
     @app.get("/api/stream")
-    def api_stream() -> StreamingResponse:
+    def api_stream(use_case: str | None = Query(None)) -> StreamingResponse:
         generator = _stream_events(
             app.state.registry_path,
             app.state.policy_path,
             app.state.heartbeat_interval_s,
             app.state.use_cases_dir,
+            use_case=use_case,
+            runs_path=app.state.runs_path,
         )
         return StreamingResponse(generator, media_type="text/event-stream")
 
@@ -448,10 +460,12 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--registry", default=str(DEFAULT_REGISTRY))
+    parser.add_argument("--runs", default=str(DEFAULT_RUNS))
     parser.add_argument("--policy", default=str(DEFAULT_POLICY))
     args = parser.parse_args()
 
     app.state.registry_path = Path(args.registry)
+    app.state.runs_path = Path(args.runs)
     app.state.policy_path = Path(args.policy)
 
     uvicorn.run(app, host=args.host, port=args.port)

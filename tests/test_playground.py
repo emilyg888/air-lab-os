@@ -104,7 +104,7 @@ def test_registry_updated_after_run(tmp_paths):
     )
     assert tmp_paths["registry"].exists()
     data = json.loads(tmp_paths["registry"].read_text())
-    assert "stub_pattern" in data
+    assert "_unknown.stub_pattern" in data
 
 
 def test_second_run_status_discard_if_no_improvement(tmp_paths):

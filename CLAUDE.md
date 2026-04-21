@@ -25,12 +25,21 @@ plugins. This repo contains zero domain-specific logic.
    Nothing else writes to it. If a weight should change, tell the human.
 
 2. **`registry.json` is derived state.**
-   Rebuilt from `memory/runs.json` on every startup. If they conflict,
-   `runs.json` wins. Never write `registry.json` directly — only via
-   `PatternRegistry.save()`.
+   Rebuilt from `memory/runs.json` on every `PatternRegistry.load()`.
+   If they conflict, `runs.json` wins. The only field preserved across
+   rebuilds from the prior `registry.json` is `status` (promotion tier).
+   Never write `registry.json` directly — only via `PatternRegistry.save()`.
+
+   **Registry keys are qualified as `<use_case>.<pattern_name>`** (e.g.
+   `concept2.erg_load_threshold`). The `use_case` is inferred from
+   `dataset_id` via `use_case_from_dataset_id()`. Compose with `qualify()`
+   and split with `split_qualified()` in `core/registry.py`.
 
 3. **`memory/runs.json` is append-only.**
    Never delete or modify existing entries. Only append new run objects.
+   Every run record must include a `use_case` field (filled by
+   `lab/playground.py` from `dataset_id`). Run migrations via
+   `scripts/migrate_qualify.py` — never hand-edit.
 
 4. **The eval split is fixed.**
    `DatasetHandle.eval_df()` always returns the same slice. Never
